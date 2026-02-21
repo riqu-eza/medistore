@@ -1,0 +1,1334 @@
+// ============================================================================
+// PHARMACEUTICAL TRACEABILITY SYSTEM - PRISMA SCHEMA
+// Production-Ready Data Models
+// Version: 1.0
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// AUTHENTICATION & AUTHORIZATION
+// ============================================================================
+
+model User {
+  id                    String                                           @id @default(uuid()) @db.Uuid
+  email                 String                                           @unique @db.VarChar(255)
+  emailVerified         DateTime?
+  passwordHash          String                @map("password_hash")      @db.VarChar(255)
+  name                  String                                           @db.VarChar(255)
+  phone                 String?                                          @db.VarChar(20)
+  image                 String?
+  // Role & Store Assignment
+  roleId                Int                   @map("role_id")
+  role                  Role                  @relation(fields: [roleId], references: [id])
+  storeId               String?               @map("store_id")           @db.Uuid
+  store                 Store?                @relation(fields: [storeId], references: [id])
+
+  // Password Management
+  passwordChangedAt     DateTime?
+  lastPasswordChange    DateTime?
+  passwordHistory       Json?
+  resetToken            String?                                          @unique
+  resetTokenExpiry      DateTime?
+
+  // Account Status
+  isActive              Boolean               @map("is_active")          @default(true)
+  isLocked              Boolean               @map("is_locked")          @default(false)
+  failedAttempts        Int                   @map("failed_attempts")    @default(0)
+  lastLogin             DateTime?             @map("last_login")         @db.Timestamptz
+
+  //                    MFA
+  mfaEnabled            Boolean               @map("mfa_enabled")        @default(false)
+  mfaSecret             String?               @map("mfa_secret")         @db.VarChar(255)
+  verificationToken     String?               @map("verification_token") @db.VarChar(255)
+
+  // NextAuth Relations
+  accounts              Account[]
+  sessions              Session[]
+
+
+  //                    Metadata
+  createdAt             DateTime              @map("created_at")         @default(now()) @db.Timestamptz
+  updatedAt             DateTime              @map("updated_at")         @updatedAt @db.Timestamptz
+  createdBy             String?               @map("created_by")         @db.Uuid
+
+  //                    Relations
+  grnsCreated           GoodsReceiptNote[]    @relation("GRNCreatedBy")
+  grnsApproved          GoodsReceiptNote[]    @relation("GRNApprovedBy")
+  ordersCreated         Order[]               @relation("OrderCreatedBy")
+  ordersApproved        Order[]               @relation("OrderApprovedBy")
+  allocationsPerformed  OrderAllocation[]
+  dispatchesPerformed   DispatchNote[]        @relation("DispatchPerformedBy")
+  transfersRequested    InventoryTransfer[]   @relation("TransferRequestedBy")
+  transfersApproved     InventoryTransfer[]   @relation("TransferApprovedBy")
+  transfersReceived     InventoryTransfer[]   @relation("TransferReceivedBy")
+  adjustmentsPerformed  InventoryAdjustment[]
+  ledgerEntries         InventoryLedger[]
+  auditLogs             AuditLog[]
+  notificationsReceived Notification[]
+
+  @@map("users")
+  @@index([email])
+  @@index([roleId])
+  @@index([storeId])
+  @@index([isActive])
+}
+
+model Account {
+  id                String   @id @default(cuid())
+  userId            String   @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?  @db.Text
+  access_token      String?  @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?  @db.Text
+  session_state     String?
+
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String    @id @default(cuid())
+  sessionToken String    @unique
+  userId       String    @db.Uuid
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String    @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Role {
+  id          Int                                             @id @default(autoincrement())
+  name        String                                          @unique @db.VarChar(100)
+  displayName String   @map("display_name")                   @db.VarChar(100)
+  description String?                                         @db.Text
+  permissions Json                                            @db.JsonB // Array of permission strings
+
+  // Role Hierarchy
+  parentId    Int?     @map("parent_id")
+  parent      Role?    @relation("RoleHierarchy", fields: [parentId], references: [id])
+  children    Role[]   @relation("RoleHierarchy")
+
+  //          Metadata
+  isSystem    Boolean  @map("is_system") // Cannot be deleted @default(false)
+  isActive    Boolean  @map("is_active")                      @default(true)
+  createdAt   DateTime @map("created_at")                     @default(now()) @db.Timestamptz
+  updatedAt   DateTime @map("updated_at")                     @updatedAt @db.Timestamptz
+
+  //          Relations
+  users       User[]
+
+  @@map("roles")
+  @@index([isActive])
+}
+
+// model Session {
+//   id           String   @id @default(uuid()) @db.Uuid
+//   userId       String   @map("user_id") @db.Uuid
+//   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+//   token        String   @unique @db.VarChar(500)
+//   refreshToken String?  @unique @map("refresh_token") @db.VarChar(500)
+  
+//   ipAddress    String?  @map("ip_address") @db.VarChar(45)
+//   userAgent    String?  @map("user_agent") @db.Text
+  
+//   expiresAt    DateTime @map("expires_at") @db.Timestamptz
+//   lastActivity DateTime @default(now()) @map("last_activity") @db.Timestamptz
+  
+//   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+//   @@map("sessions")
+//   @@index([userId])
+//   @@index([token])
+//   @@index([expiresAt])
+// }
+
+// ============================================================================
+// MASTER DATA - DRUGS & CATEGORIES
+// ============================================================================
+
+model DrugCategory {
+  id           Int                                  @id @default(autoincrement())
+  name         String                               @unique @db.VarChar(255)
+  description  String?                              @db.Text
+  code         String?                              @unique @db.VarChar(50)
+
+  // Hierarchy Support
+  parentId     Int?           @map("parent_id")
+  parent       DrugCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children     DrugCategory[] @relation("CategoryHierarchy")
+
+  //           Classification
+  categoryType String         @map("category_type") @db.VarChar(50) // therapeutic, pharmacological, storage
+
+  //           Metadata
+  isActive     Boolean        @map("is_active")     @default(true)
+  createdAt    DateTime       @map("created_at")    @default(now()) @db.Timestamptz
+  updatedAt    DateTime       @map("updated_at")    @updatedAt @db.Timestamptz
+
+  //           Relations
+  drugs        Drug[]
+
+  @@map("drug_categories")
+  @@index([categoryType])
+  @@index([isActive])
+}
+
+model Drug {
+  id                    String                                                           @id @default(uuid()) @db.Uuid
+
+  //                    Identification
+  drugCode              String            @map("drug_code")                              @unique @db.VarChar(50)
+  genericName           String            @map("generic_name")                           @db.VarChar(255)
+  brandName             String?           @map("brand_name")                             @db.VarChar(255)
+
+  //                    Classification
+  categoryId            Int               @map("category_id")
+  category              DrugCategory      @relation(fields: [categoryId], references: [id])
+
+  // Physical Properties
+  dosageForm            String            @map("dosage_form")                            @db.VarChar(100) // tablet, capsule, syrup, injection, etc.
+  strength              String                                                           @db.VarChar(100) // e.g., "500mg", "10ml/2mg"
+  packSize              Int               @map("pack_size") // Number of pieces per pack
+  unitOfMeasure         String            @map("unit_of_measure")                        @db.VarChar(50) // tablet, ml, vial, etc.
+
+  // Storage & Handling
+  storageRequirements   Json?             @map("storage_requirements")                   @db.JsonB // {temp_min, temp_max, light_sensitive, etc}
+  storageConditionGroup String?           @map("storage_condition_group")                @db.VarChar(50) // cold, general, controlled
+
+  //                    Regulatory
+  regulatoryClass       String            @map("regulatory_class")                       @db.VarChar(50) // OTC, prescription, controlled
+  isControlled          Boolean           @map("is_controlled")                          @default(false)
+  controlledSchedule    String?           @map("controlled_schedule")                    @db.VarChar(20) // Schedule I-V
+
+  // Product Information
+  manufacturer          String?                                                          @db.VarChar(255)
+  activeIngredients     Json?             @map("active_ingredients")                     @db.JsonB // Array of {name, strength}
+  description           String?                                                          @db.Text
+  imageUrl              String?           @map("image_url")                              @db.VarChar(500)
+
+  // Pricing & Valuation
+  unitCost              Decimal?          @map("unit_cost")                              @db.Decimal(10, 2)
+  sellingPrice          Decimal?          @map("selling_price")                          @db.Decimal(10, 2)
+
+  // Reorder Management
+  reorderPoint          Int?              @map("reorder_point") // Minimum stock level
+  reorderQuantity       Int?              @map("reorder_quantity")
+
+  //                    Status
+  status                String                                                           @default("active") @db.VarChar(50) // active, inactive, discontinued
+  discontinuedDate      DateTime?         @map("discontinued_date")                      @db.Timestamptz
+  discontinuedReason    String?           @map("discontinued_reason")                    @db.Text
+  replacementDrugId     String?           @map("replacement_drug_id")                    @db.Uuid
+
+  //                    Metadata
+  createdAt             DateTime          @map("created_at")                             @default(now()) @db.Timestamptz
+  updatedAt             DateTime          @map("updated_at")                             @updatedAt @db.Timestamptz
+  createdBy             String?           @map("created_by")                             @db.Uuid
+
+  //                    Relations
+  batches               Batch[]
+  inventory             Inventory[]
+  grnItems              GRNItem[]
+  orderItems            OrderItem[]
+  ledgerEntries         InventoryLedger[]
+  transferItems         TransferItem[]
+  adjustmentItems       AdjustmentItem[]
+  supplierDrugs         SupplierDrug[]
+
+  @@map("drugs")
+  @@index([drugCode])
+  @@index([genericName])
+  @@index([brandName])
+  @@index([categoryId])
+  @@index([status])
+  @@index([isControlled])
+  @@index([storageConditionGroup])
+}
+
+// ============================================================================
+// SUPPLIER MANAGEMENT
+// ============================================================================
+
+model Supplier {
+  id                 String                                           @id @default(uuid()) @db.Uuid
+
+  // Company Information
+  name               String                                           @db.VarChar(255)
+  code               String                                           @unique @db.VarChar(50)
+  companyType        String             @map("company_type")          @db.VarChar(50) // manufacturer, distributor, wholesaler
+
+  // Contact Information
+  contactPerson      String?            @map("contact_person")        @db.VarChar(255)
+  email              String?                                          @db.VarChar(255)
+  phone              String?                                          @db.VarChar(20)
+  alternatePhone     String?            @map("alternate_phone")       @db.VarChar(20)
+  website            String?                                          @db.VarChar(255)
+
+  //                 Address
+  address            Json                                             @db.JsonB // {street, city, state, country, postal_code}
+
+  // Legal & Regulatory
+  licenseNumber      String?            @map("license_number")        @db.VarChar(100)
+  licenseExpiry      DateTime?          @map("license_expiry")        @db.Timestamptz
+  taxId              String?            @map("tax_id")                @db.VarChar(50)
+
+  //                 Banking
+  bankDetails        Json?              @map("bank_details")          @db.JsonB // {bank_name, account_number, etc}
+
+  // Performance Metrics
+  rating             Decimal?                                         @db.Decimal(3, 2) // 0.00 to 5.00
+  totalOrders        Int                @map("total_orders")          @default(0)
+  onTimeDeliveryRate Decimal?           @map("on_time_delivery_rate") @db.Decimal(5, 2)
+  qualityScore       Decimal?           @map("quality_score")         @db.Decimal(5, 2)
+
+  // Status & Approval
+  status             String                                           @default("pending") @db.VarChar(50) // pending, approved, blacklisted, suspended
+  approvedAt         DateTime?          @map("approved_at")           @db.Timestamptz
+  approvedBy         String?            @map("approved_by")           @db.Uuid
+
+  //                 Metadata
+  notes              String?                                          @db.Text
+  createdAt          DateTime           @map("created_at")            @default(now()) @db.Timestamptz
+  updatedAt          DateTime           @map("updated_at")            @updatedAt @db.Timestamptz
+  createdBy          String?            @map("created_by")            @db.Uuid
+
+  //                 Relations
+  batches            Batch[]
+  grns               GoodsReceiptNote[]
+  supplierDrugs      SupplierDrug[]
+  documents          SupplierDocument[]
+
+  @@map("suppliers")
+  @@index([code])
+  @@index([status])
+  @@index([name])
+}
+
+model SupplierDrug {
+  id               String                              @id @default(uuid()) @db.Uuid
+
+  supplierId       String   @map("supplier_id")        @db.Uuid
+  supplier         Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  drugId           String   @map("drug_id")            @db.Uuid
+  drug             Drug     @relation(fields: [drugId], references: [id], onDelete: Cascade)
+
+  // Supplier-specific info
+  supplierDrugCode String?  @map("supplier_drug_code") @db.VarChar(50)
+  leadTimeDays     Int?     @map("lead_time_days")
+  minimumOrderQty  Int?     @map("minimum_order_qty")
+  unitCost         Decimal? @map("unit_cost")          @db.Decimal(10, 2)
+
+  isPreferred      Boolean  @map("is_preferred")       @default(false)
+  isActive         Boolean  @map("is_active")          @default(true)
+
+  createdAt        DateTime @map("created_at")         @default(now()) @db.Timestamptz
+  updatedAt        DateTime @map("updated_at")         @updatedAt @db.Timestamptz
+
+  @@unique([supplierId, drugId])
+  @@map("supplier_drugs")
+  @@index([supplierId])
+  @@index([drugId])
+}
+
+model SupplierDocument {
+  id           String                               @id @default(uuid()) @db.Uuid
+
+  supplierId   String    @map("supplier_id")        @db.Uuid
+  supplier     Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  documentType String    @map("document_type")      @db.VarChar(100) // license, tax, certification, contract
+  documentName String    @map("document_name")      @db.VarChar(255)
+  fileUrl      String    @map("file_url")           @db.VarChar(500)
+  fileSize     Int?      @map("file_size") // bytes
+  mimeType     String?   @map("mime_type")          @db.VarChar(100)
+
+  issueDate    DateTime? @map("issue_date")         @db.Timestamptz
+  expiryDate   DateTime? @map("expiry_date")        @db.Timestamptz
+
+  verifiedBy   String?   @map("verified_by")        @db.Uuid
+  verifiedAt   DateTime? @map("verified_at")        @db.Timestamptz
+
+  notes        String?                              @db.Text
+  createdAt    DateTime  @map("created_at")         @default(now()) @db.Timestamptz
+  updatedAt    DateTime  @map("updated_at")         @updatedAt @db.Timestamptz
+
+  @@map("supplier_documents")
+  @@index([supplierId])
+  @@index([documentType])
+  @@index([expiryDate])
+}
+
+// ============================================================================
+// STORE MANAGEMENT
+// ============================================================================
+
+model Store {
+  id                  String                                              @id @default(uuid()) @db.Uuid
+
+  //                  Identification
+  name                String                                              @db.VarChar(255)
+  code                String                                              @unique @db.VarChar(50)
+
+  // Store Classification
+  storeType           String                @map("store_type")            @db.VarChar(50) // cold, general, controlled, receiving
+
+  // Storage Conditions
+  temperatureMin      Decimal?              @map("temperature_min")       @db.Decimal(5, 2)
+  temperatureMax      Decimal?              @map("temperature_max")       @db.Decimal(5, 2)
+  humidityMin         Decimal?              @map("humidity_min")          @db.Decimal(5, 2)
+  humidityMax         Decimal?              @map("humidity_max")          @db.Decimal(5, 2)
+
+  //                  Capacity
+  totalCapacity       Decimal?              @map("total_capacity")        @db.Decimal(10, 2) // in cubic meters or units
+  currentUtilization  Decimal?              @map("current_utilization")   @db.Decimal(5, 2) // percentage
+
+  // Allowed Operations
+  allowedDrugTypes    Json?                 @map("allowed_drug_types")    @db.JsonB // Array of allowed drug types
+  allowsControlled    Boolean               @map("allows_controlled")     @default(false)
+  allowsDispatch      Boolean               @map("allows_dispatch")       @default(true)
+  isReceivingZone     Boolean               @map("is_receiving_zone")     @default(false)
+
+  //                  Location
+  address             Json?                                               @db.JsonB
+  parentStoreId       String?               @map("parent_store_id")       @db.Uuid
+
+  //                  Management
+  managerId           String?               @map("manager_id")            @db.Uuid
+
+  // Operating Hours
+  operatingHours      Json?                 @map("operating_hours")       @db.JsonB
+
+  // IoT Integration
+  temperatureSensorId String?               @map("temperature_sensor_id") @db.VarChar(100)
+  humiditySensorId    String?               @map("humidity_sensor_id")    @db.VarChar(100)
+
+  //                  Status
+  isActive            Boolean               @map("is_active")             @default(true)
+
+  //                  Metadata
+  notes               String?                                             @db.Text
+  createdAt           DateTime              @map("created_at")            @default(now()) @db.Timestamptz
+  updatedAt           DateTime              @map("updated_at")            @updatedAt @db.Timestamptz
+  createdBy           String?               @map("created_by")            @db.Uuid
+
+  //                  Relations
+  users               User[]
+  inventory           Inventory[]
+  batches             Batch[]
+  ledgerEntries       InventoryLedger[]
+  ordersFrom          Order[]               @relation("OrderSourceStore")
+  dispatchNotes       DispatchNote[]
+  transfersFrom       InventoryTransfer[]   @relation("TransferFromStore")
+  transfersTo         InventoryTransfer[]   @relation("TransferToStore")
+  adjustments         InventoryAdjustment[]
+  allocations         OrderAllocation[]
+  temperatureLogs     TemperatureLog[]
+
+  @@map("stores")
+  @@index([code])
+  @@index([storeType])
+  @@index([isActive])
+  @@index([isReceivingZone])
+}
+
+model TemperatureLog {
+  id          String                        @id @default(uuid()) @db.Uuid
+
+  storeId     String   @map("store_id")     @db.Uuid
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  temperature Decimal                       @db.Decimal(5, 2)
+  humidity    Decimal?                      @db.Decimal(5, 2)
+
+  isAlert     Boolean  @map("is_alert")     @default(false)
+  alertReason String?  @map("alert_reason") @db.Text
+
+  recordedAt  DateTime @map("recorded_at")  @default(now()) @db.Timestamptz
+  sensorId    String?  @map("sensor_id")    @db.VarChar(100)
+
+  @@map("temperature_logs")
+  @@index([storeId, recordedAt])
+  @@index([isAlert])
+}
+
+// ============================================================================
+// BATCH MANAGEMENT (CRITICAL FOR TRACEABILITY)
+// ============================================================================
+
+model Batch {
+  id                String                                                          @id @default(uuid()) @db.Uuid
+
+  // Batch Identification
+  batchNumber       String            @map("batch_number")                          @db.VarChar(100)
+
+  //                References
+  drugId            String            @map("drug_id")                               @db.Uuid
+  drug              Drug              @relation(fields: [drugId], references: [id])
+
+  supplierId        String            @map("supplier_id")                           @db.Uuid
+  supplier          Supplier          @relation(fields: [supplierId], references: [id])
+
+  grnId             String            @map("grn_id")                                @db.Uuid
+  grn               GoodsReceiptNote  @relation(fields: [grnId], references: [id])
+
+  // Dates (Critical)
+  manufacturingDate DateTime          @map("manufacturing_date")                    @db.Timestamptz
+  expiryDate        DateTime          @map("expiry_date")                           @db.Timestamptz
+  receivedDate      DateTime          @map("received_date")                         @default(now()) @db.Timestamptz
+
+  //                Quantities
+  receivedQuantity  Decimal           @map("received_quantity")                     @db.Decimal(10, 2)
+  unitType          String            @map("unit_type")                             @db.VarChar(50) // bulk, pieces
+  packSize          Int?              @map("pack_size") // If bulk, pieces per pack
+  totalPieces       Decimal?          @map("total_pieces")                          @db.Decimal(10, 2) // Computed: receivedQuantity * packSize
+
+  // Current Location
+  currentStoreId    String?           @map("current_store_id")                      @db.Uuid
+  currentStore      Store?            @relation(fields: [currentStoreId], references: [id])
+
+  // Quality & Inspection
+  qualityStatus     String            @map("quality_status")                        @default("pending") @db.VarChar(50) // pending, passed, failed, quarantined
+  inspectionNotes   String?           @map("inspection_notes")                      @db.Text
+  inspectionDate    DateTime?         @map("inspection_date")                       @db.Timestamptz
+  inspectedBy       String?           @map("inspected_by")                          @db.Uuid
+
+  // Batch Genealogy
+  parentBatchId     String?           @map("parent_batch_id")                       @db.Uuid // If split from another batch
+
+  // Status Lifecycle
+  status            String                                                          @default("active") @db.VarChar(50) // active, expired, quarantined, depleted, recalled
+  statusChangedAt   DateTime?         @map("status_changed_at")                     @db.Timestamptz
+  statusChangedBy   String?           @map("status_changed_by")                     @db.Uuid
+  statusReason      String?           @map("status_reason")                         @db.Text
+
+  // Recall Information
+  isRecalled        Boolean           @map("is_recalled")                           @default(false)
+  recallDate        DateTime?         @map("recall_date")                           @db.Timestamptz
+  recallReason      String?           @map("recall_reason")                         @db.Text
+  recallLevel       String?           @map("recall_level")                          @db.VarChar(50) // I, II, III
+
+  //                Metadata
+  notes             String?                                                         @db.Text
+  createdAt         DateTime          @map("created_at")                            @default(now()) @db.Timestamptz
+  updatedAt         DateTime          @map("updated_at")                            @updatedAt @db.Timestamptz
+
+  //                Relations
+  inventory         Inventory[]
+  ledgerEntries     InventoryLedger[]
+  allocations       OrderAllocation[]
+  dispatchItems     DispatchItem[]
+  transferItems     TransferItem[]
+  adjustmentItems   AdjustmentItem[]
+
+  @@unique([batchNumber, drugId, supplierId])
+  @@map("batches")
+  @@index([batchNumber])
+  @@index([drugId])
+  @@index([supplierId])
+  @@index([grnId])
+  @@index([expiryDate])
+  @@index([status])
+  @@index([isRecalled])
+  @@index([currentStoreId])
+}
+
+// ============================================================================
+// GOODS RECEIPT NOTE (GRN) - INBOUND LOGISTICS
+// ============================================================================
+
+model GoodsReceiptNote {
+  id                   String                                  @id @default(uuid()) @db.Uuid
+
+  // GRN Identification
+  grnNumber            String    @map("grn_number")            @unique @db.VarChar(50)
+
+  //                   References
+  supplierId           String    @map("supplier_id")           @db.Uuid
+  supplier             Supplier  @relation(fields: [supplierId], references: [id])
+
+  purchaseOrderRef     String?   @map("purchase_order_ref")    @db.VarChar(100)
+  deliveryNoteRef      String?   @map("delivery_note_ref")     @db.VarChar(100)
+  invoiceRef           String?   @map("invoice_ref")           @db.VarChar(100)
+
+  // Receiving Information
+  receivedDate         DateTime  @map("received_date")         @db.Timestamptz
+  receivedBy           String    @map("received_by")           @db.Uuid
+  receivingOfficer     User      @relation("GRNCreatedBy", fields: [receivedBy], references: [id])
+
+  // Delivery Details
+  vehicleNumber        String?   @map("vehicle_number")        @db.VarChar(50)
+  driverName           String?   @map("driver_name")           @db.VarChar(255)
+  driverPhone          String?   @map("driver_phone")          @db.VarChar(20)
+
+  // Temperature Verification
+  deliveryTemperature  Decimal?  @map("delivery_temperature")  @db.Decimal(5, 2)
+  temperatureCompliant Boolean?  @map("temperature_compliant")
+
+  // Quality Checks
+  packagingIntact      Boolean?  @map("packaging_intact")
+  labelsLegible        Boolean?  @map("labels_legible")
+  documentsComplete    Boolean?  @map("documents_complete")
+
+  // Status & Approval
+  status               String                                  @default("pending") @db.VarChar(50) // pending, approved, rejected, partial
+  approvedBy           String?   @map("approved_by")           @db.Uuid
+  approver             User?     @relation("GRNApprovedBy", fields: [approvedBy], references: [id])
+  approvedAt           DateTime? @map("approved_at")           @db.Timestamptz
+
+  rejectionReason      String?   @map("rejection_reason")      @db.Text
+
+  //                   Totals
+  totalItems           Int       @map("total_items")           @default(0)
+  totalValue           Decimal?  @map("total_value")           @db.Decimal(12, 2)
+
+  //                   Documents
+  photoUrls            Json?     @map("photo_urls")            @db.JsonB // Array of URLs
+  documentUrls         Json?     @map("document_urls")         @db.JsonB
+
+  //                   Metadata
+  notes                String?                                 @db.Text
+  createdAt            DateTime  @map("created_at")            @default(now()) @db.Timestamptz
+  updatedAt            DateTime  @map("updated_at")            @updatedAt @db.Timestamptz
+
+  //                   Relations
+  items                GRNItem[]
+  batches              Batch[]
+
+  @@map("goods_receipt_notes")
+  @@index([grnNumber])
+  @@index([supplierId])
+  @@index([status])
+  @@index([receivedDate])
+  @@index([receivedBy])
+}
+
+model GRNItem {
+  id                String                                      @id @default(uuid()) @db.Uuid
+
+  grnId             String           @map("grn_id")             @db.Uuid
+  grn               GoodsReceiptNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+
+  drugId            String           @map("drug_id")            @db.Uuid
+  drug              Drug             @relation(fields: [drugId], references: [id])
+
+  // Batch Information
+  batchNumber       String           @map("batch_number")       @db.VarChar(100)
+  manufacturingDate DateTime         @map("manufacturing_date") @db.Timestamptz
+  expiryDate        DateTime         @map("expiry_date")        @db.Timestamptz
+
+  //                Quantities
+  orderedQuantity   Decimal?         @map("ordered_quantity")   @db.Decimal(10, 2)
+  receivedQuantity  Decimal          @map("received_quantity")  @db.Decimal(10, 2)
+  rejectedQuantity  Decimal          @map("rejected_quantity")  @default(0) @db.Decimal(10, 2)
+  acceptedQuantity  Decimal          @map("accepted_quantity")  @db.Decimal(10, 2) // receivedQuantity - rejectedQuantity
+
+  unitType          String           @map("unit_type")          @db.VarChar(50) // bulk, pieces
+  packSize          Int?             @map("pack_size")
+
+  //                Pricing
+  unitCost          Decimal?         @map("unit_cost")          @db.Decimal(10, 2)
+  totalCost         Decimal?         @map("total_cost")         @db.Decimal(12, 2)
+
+  //                Inspection
+  inspectionStatus  String           @map("inspection_status")  @default("pending") @db.VarChar(50)
+  inspectionNotes   String?          @map("inspection_notes")   @db.Text
+
+  //                Damage/Discrepancy
+  hasDamage         Boolean          @map("has_damage")         @default(false)
+  damageDescription String?          @map("damage_description") @db.Text
+
+  createdAt         DateTime         @map("created_at")         @default(now()) @db.Timestamptz
+  updatedAt         DateTime         @map("updated_at")         @updatedAt @db.Timestamptz
+
+  @@map("grn_items")
+  @@index([grnId])
+  @@index([drugId])
+  @@index([batchNumber])
+  @@index([expiryDate])
+}
+
+// ============================================================================
+// INVENTORY - CURRENT STATE (DERIVED FROM LEDGER)
+// ============================================================================
+
+model Inventory {
+  id                String                                             @id @default(uuid()) @db.Uuid
+
+  //                Location
+  storeId           String    @map("store_id")                         @db.Uuid
+  store             Store     @relation(fields: [storeId], references: [id])
+
+  // Drug & Batch
+  drugId            String    @map("drug_id")                          @db.Uuid
+  drug              Drug      @relation(fields: [drugId], references: [id])
+
+  batchId           String    @map("batch_id")                         @db.Uuid
+  batch             Batch     @relation(fields: [batchId], references: [id])
+
+  // Quantities (Core Business Logic)
+  availableQuantity Decimal   @map("available_quantity")               @default(0) @db.Decimal(10, 2)
+  reservedQuantity  Decimal   @map("reserved_quantity")                @default(0) @db.Decimal(10, 2)
+  totalQuantity     Decimal   @map("total_quantity")                   @default(0) @db.Decimal(10, 2) // availableQuantity + reservedQuantity
+
+  // Quick Access (Denormalized for Performance)
+  expiryDate        DateTime  @map("expiry_date")                      @db.Timestamptz
+  daysToExpiry      Int?      @map("days_to_expiry") // Computed daily
+
+  // Status Flags
+  isExpired         Boolean   @map("is_expired")                       @default(false)
+  isNearExpiry      Boolean   @map("is_near_expiry") // <90 days       @default(false)
+  isLowStock        Boolean   @map("is_low_stock")                     @default(false)
+
+  // Last Movement
+  lastMovementDate  DateTime? @map("last_movement_date")               @db.Timestamptz
+  lastMovementType  String?   @map("last_movement_type")               @db.VarChar(50)
+
+  //                Metadata
+  lastUpdated       DateTime  @map("last_updated")                     @updatedAt @db.Timestamptz
+  createdAt         DateTime  @map("created_at")                       @default(now()) @db.Timestamptz
+
+  @@unique([drugId, batchId, storeId])
+  @@map("inventory")
+  @@index([storeId])
+  @@index([drugId])
+  @@index([batchId])
+  @@index([expiryDate])
+  @@index([isExpired])
+  @@index([isNearExpiry])
+  @@index([availableQuantity])
+}
+
+// ============================================================================
+// INVENTORY LEDGER - IMMUTABLE TRANSACTION LOG
+// ============================================================================
+
+model InventoryLedger {
+  id            String                          @id @default(uuid()) @db.Uuid
+
+  //            When
+  timestamp     DateTime @map("timestamp")      @default(now()) @db.Timestamptz
+
+  //            What
+  drugId        String   @map("drug_id")        @db.Uuid
+  drug          Drug     @relation(fields: [drugId], references: [id])
+
+  batchId       String   @map("batch_id")       @db.Uuid
+  batch         Batch    @relation(fields: [batchId], references: [id])
+
+  //            Where
+  storeId       String   @map("store_id")       @db.Uuid
+  store         Store    @relation(fields: [storeId], references: [id])
+
+  // Movement (Double-Entry System)
+  quantityIn    Decimal  @map("quantity_in")    @default(0) @db.Decimal(10, 2)
+  quantityOut   Decimal  @map("quantity_out")   @default(0) @db.Decimal(10, 2)
+  balanceAfter  Decimal  @map("balance_after")  @db.Decimal(10, 2)
+
+  //            Classification
+  actionType    String   @map("action_type")    @db.VarChar(50)
+  // RECEIVE, TRANSFER_IN, TRANSFER_OUT, DISPATCH, ADJUSTMENT_IN, ADJUSTMENT_OUT,
+  // RESERVE, UNRESERVE, RETURN, DISPOSAL, RECALL
+
+  //            Who
+  performedBy   String   @map("performed_by")   @db.Uuid
+  user          User     @relation(fields: [performedBy], references: [id])
+
+  // Reference (Polymorphic)
+  referenceType String   @map("reference_type") @db.VarChar(50)
+  // GRN, ORDER, TRANSFER, ADJUSTMENT, DISPATCH, RETURN
+  referenceId   String   @map("reference_id")   @db.Uuid
+
+  // Additional Context
+  notes         String?                         @db.Text
+  metadata      Json?                           @db.JsonB // Flexible for additional data
+
+  // Immutable - No Updates Allowed
+  createdAt     DateTime @map("created_at")     @default(now()) @db.Timestamptz
+
+  @@map("inventory_ledger")
+  @@index([timestamp])
+  @@index([drugId, batchId, storeId])
+  @@index([actionType])
+  @@index([referenceType, referenceId])
+  @@index([performedBy])
+}
+
+// ============================================================================
+// ORDER MANAGEMENT
+// ============================================================================
+
+model Order {
+  id                   String                                           @id @default(uuid()) @db.Uuid
+
+  // Order Identification
+  orderNumber          String            @map("order_number")           @unique @db.VarChar(50)
+
+  // Customer Information
+  customerName         String            @map("customer_name")          @db.VarChar(255)
+  customerFacility     String?           @map("customer_facility")      @db.VarChar(255)
+  customerPhone        String?           @map("customer_phone")         @db.VarChar(20)
+  customerEmail        String?           @map("customer_email")         @db.VarChar(255)
+
+  // Delivery Information
+  shippingAddress      Json              @map("shipping_address")       @db.JsonB
+  deliveryDate         DateTime          @map("delivery_date")          @db.Timestamptz
+  deliveryInstructions String?           @map("delivery_instructions")  @db.Text
+
+  // Order Details
+  orderDate            DateTime          @map("order_date")             @default(now()) @db.Timestamptz
+  priority             String            @map("priority")               @default("normal") @db.VarChar(50) // urgent, high, normal, low
+  orderType            String            @map("order_type")             @default("regular") @db.VarChar(50) // regular, emergency, standing
+
+  // Source Store
+  sourceStoreId        String?           @map("source_store_id")        @db.Uuid
+  sourceStore          Store?            @relation("OrderSourceStore", fields: [sourceStoreId], references: [id])
+
+  // Status Workflow
+  status               String            @map("status")                 @default("draft") @db.VarChar(50)
+  // draft → pending_approval → approved → allocated → picked → dispatched → completed → cancelled
+
+  //                   Approval
+  createdBy            String            @map("created_by")             @db.Uuid
+  creator              User              @relation("OrderCreatedBy", fields: [createdBy], references: [id])
+
+  approvedBy           String?           @map("approved_by")            @db.Uuid
+  approver             User?             @relation("OrderApprovedBy", fields: [approvedBy], references: [id])
+  approvedAt           DateTime?         @map("approved_at")            @db.Timestamptz
+
+  //                   Fulfillment
+  allocatedAt          DateTime?         @map("allocated_at")           @db.Timestamptz
+  dispatchedAt         DateTime?         @map("dispatched_at")          @db.Timestamptz
+  completedAt          DateTime?         @map("completed_at")           @db.Timestamptz
+  cancelledAt          DateTime?         @map("cancelled_at")           @db.Timestamptz
+  cancellationReason   String?           @map("cancellation_reason")    @db.Text
+
+  //                   Totals
+  totalItems           Int               @map("total_items")            @default(0)
+  totalValue           Decimal?          @map("total_value")            @db.Decimal(12, 2)
+
+  //                   Flags
+  isPartialFulfillment Boolean           @map("is_partial_fulfillment") @default(false)
+  hasBackorder         Boolean           @map("has_backorder")          @default(false)
+
+  //                   Metadata
+  notes                String?                                          @db.Text
+  internalNotes        String?           @map("internal_notes")         @db.Text
+  createdAt            DateTime          @map("created_at")             @default(now()) @db.Timestamptz
+  updatedAt            DateTime          @map("updated_at")             @updatedAt @db.Timestamptz
+
+  //                   Relations
+  items                OrderItem[]
+  allocations          OrderAllocation[]
+  dispatchNotes        DispatchNote[]
+
+  @@map("orders")
+  @@index([orderNumber])
+  @@index([status])
+  @@index([priority])
+  @@index([orderDate])
+  @@index([deliveryDate])
+  @@index([createdBy])
+  @@index([customerName])
+}
+
+model OrderItem {
+  id                 String                                        @id @default(uuid()) @db.Uuid
+
+  orderId            String            @map("order_id")            @db.Uuid
+  order              Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  drugId             String            @map("drug_id")             @db.Uuid
+  drug               Drug              @relation(fields: [drugId], references: [id])
+
+  //                 Quantities
+  requestedQuantity  Decimal           @map("requested_quantity")  @db.Decimal(10, 2)
+  allocatedQuantity  Decimal           @map("allocated_quantity")  @default(0) @db.Decimal(10, 2)
+  dispatchedQuantity Decimal           @map("dispatched_quantity") @default(0) @db.Decimal(10, 2)
+  backorderQuantity  Decimal           @map("backorder_quantity")  @default(0) @db.Decimal(10, 2)
+
+  //                 Pricing
+  unitPrice          Decimal?          @map("unit_price")          @db.Decimal(10, 2)
+  totalPrice         Decimal?          @map("total_price")         @db.Decimal(12, 2)
+
+  //                 Status
+  status             String            @map("status")              @default("pending") @db.VarChar(50)
+  // pending, allocated, partially_allocated, dispatched, completed, cancelled
+
+  // Special Instructions
+  notes              String?                                       @db.Text
+
+  createdAt          DateTime          @map("created_at")          @default(now()) @db.Timestamptz
+  updatedAt          DateTime          @map("updated_at")          @updatedAt @db.Timestamptz
+
+  //                 Relations
+  allocations        OrderAllocation[]
+  dispatchItems      DispatchItem[]
+
+  @@map("order_items")
+  @@index([orderId])
+  @@index([drugId])
+  @@index([status])
+}
+
+model OrderAllocation {
+  id                String                               @id @default(uuid()) @db.Uuid
+
+  orderId           String    @map("order_id")           @db.Uuid
+  order             Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  orderItemId       String    @map("order_item_id")      @db.Uuid
+  orderItem         OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  // Batch Selection (FEFO)
+  batchId           String    @map("batch_id")           @db.Uuid
+  batch             Batch     @relation(fields: [batchId], references: [id])
+
+  storeId           String    @map("store_id")           @db.Uuid
+  store             Store     @relation(fields: [storeId], references: [id])
+
+  //                Allocation
+  allocatedQuantity Decimal   @map("allocated_quantity") @db.Decimal(10, 2)
+
+  // Allocation Metadata
+  allocatedAt       DateTime  @map("allocated_at")       @default(now()) @db.Timestamptz
+  allocatedBy       String    @map("allocated_by")       @db.Uuid
+  allocator         User      @relation(fields: [allocatedBy], references: [id])
+
+  //                Status
+  status            String    @map("status")             @default("reserved") @db.VarChar(50)
+  // reserved, picked, dispatched, cancelled
+
+  // Release (if cancelled)
+  releasedAt        DateTime? @map("released_at")        @db.Timestamptz
+  releaseReason     String?   @map("release_reason")     @db.Text
+
+  createdAt         DateTime  @map("created_at")         @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @map("updated_at")         @updatedAt @db.Timestamptz
+
+  @@map("order_allocations")
+  @@index([orderItemId])
+  @@index([batchId])
+  @@index([storeId])
+  @@index([status])
+  @@index([allocatedAt])
+}
+
+// ============================================================================
+// DISPATCH MANAGEMENT
+// ============================================================================
+
+model DispatchNote {
+  id                    String                                         @id @default(uuid()) @db.Uuid
+
+  // Dispatch Identification
+  dispatchNumber        String         @map("dispatch_number")         @unique @db.VarChar(50)
+
+  // Order Reference
+  orderId               String         @map("order_id")                @db.Uuid
+  order                 Order          @relation(fields: [orderId], references: [id])
+
+  //                    Store
+  storeId               String         @map("store_id")                @db.Uuid
+  store                 Store          @relation(fields: [storeId], references: [id])
+
+  // Dispatch Details
+  dispatchDate          DateTime       @map("dispatch_date")           @default(now()) @db.Timestamptz
+  dispatchBy            String         @map("dispatch_by")             @db.Uuid
+  dispatcher            User           @relation("DispatchPerformedBy", fields: [dispatchBy], references: [id])
+
+  // Delivery Details
+  driverName            String?        @map("driver_name")             @db.VarChar(255)
+  vehicleNumber         String?        @map("vehicle_number")          @db.VarChar(50)
+  driverPhone           String?        @map("driver_phone")            @db.VarChar(20)
+
+  // Quality Control
+  temperatureAtDispatch Decimal?       @map("temperature_at_dispatch") @db.Decimal(5, 2)
+  packagingVerified     Boolean?       @map("packaging_verified")
+  labelsVerified        Boolean?       @map("labels_verified")
+  documentationComplete Boolean?       @map("documentation_complete")
+
+  //                    Status
+  status                String         @map("status")                  @default("prepared") @db.VarChar(50)
+  // prepared, dispatched, in_transit, delivered, failed
+
+  // Delivery Confirmation
+  deliveredAt           DateTime?      @map("delivered_at")            @db.Timestamptz
+  receivedBy            String?        @map("received_by")             @db.VarChar(255) // Customer representative
+  signatureUrl          String?        @map("signature_url")           @db.VarChar(500)
+  proofOfDeliveryUrl    String?        @map("proof_of_delivery_url")   @db.VarChar(500)
+
+  //                    Totals
+  totalItems            Int            @map("total_items")             @default(0)
+
+  //                    Documents
+  documentUrls          Json?          @map("document_urls")           @db.JsonB
+
+  //                    Metadata
+  notes                 String?                                        @db.Text
+  createdAt             DateTime       @map("created_at")              @default(now()) @db.Timestamptz
+  updatedAt             DateTime       @map("updated_at")              @updatedAt @db.Timestamptz
+
+  //                    Relations
+  items                 DispatchItem[]
+
+  @@map("dispatch_notes")
+  @@index([dispatchNumber])
+  @@index([orderId])
+  @@index([storeId])
+  @@index([status])
+  @@index([dispatchDate])
+}
+
+model DispatchItem {
+  id                 String                                   @id @default(uuid()) @db.Uuid
+
+  dispatchNoteId     String       @map("dispatch_note_id")    @db.Uuid
+  dispatchNote       DispatchNote @relation(fields: [dispatchNoteId], references: [id], onDelete: Cascade)
+
+  orderItemId        String       @map("order_item_id")       @db.Uuid
+  orderItem          OrderItem    @relation(fields: [orderItemId], references: [id])
+
+  batchId            String       @map("batch_id")            @db.Uuid
+  batch              Batch        @relation(fields: [batchId], references: [id])
+
+  //                 Quantities
+  quantityDispatched Decimal      @map("quantity_dispatched") @db.Decimal(10, 2)
+
+  // Picking Details
+  pickedBy           String?      @map("picked_by")           @db.Uuid
+  pickedAt           DateTime?    @map("picked_at")           @db.Timestamptz
+
+  // Quality Check
+  qualityChecked     Boolean?     @map("quality_checked")
+  qualityNotes       String?      @map("quality_notes")       @db.Text
+
+  createdAt          DateTime     @map("created_at")          @default(now()) @db.Timestamptz
+  updatedAt          DateTime     @map("updated_at")          @updatedAt @db.Timestamptz
+
+  @@map("dispatch_items")
+  @@index([dispatchNoteId])
+  @@index([orderItemId])
+  @@index([batchId])
+}
+
+// ============================================================================
+// INVENTORY TRANSFERS
+// ============================================================================
+
+model InventoryTransfer {
+  id             String                                 @id @default(uuid()) @db.Uuid
+
+  // Transfer Identification
+  transferNumber String         @map("transfer_number") @unique @db.VarChar(50)
+
+  //             Stores
+  fromStoreId    String         @map("from_store_id")   @db.Uuid
+  fromStore      Store          @relation("TransferFromStore", fields: [fromStoreId], references: [id])
+
+  toStoreId      String         @map("to_store_id")     @db.Uuid
+  toStore        Store          @relation("TransferToStore", fields: [toStoreId], references: [id])
+
+  // Transfer Details
+  transferDate   DateTime       @map("transfer_date")   @default(now()) @db.Timestamptz
+  transferType   String         @map("transfer_type")   @default("inter_store") @db.VarChar(50)
+  // inter_store, receiving_to_store
+
+  //             Workflow
+  requestedBy    String         @map("requested_by")    @db.Uuid
+  requester      User           @relation("TransferRequestedBy", fields: [requestedBy], references: [id])
+  requestedAt    DateTime       @map("requested_at")    @default(now()) @db.Timestamptz
+
+  approvedBy     String?        @map("approved_by")     @db.Uuid
+  approver       User?          @relation("TransferApprovedBy", fields: [approvedBy], references: [id])
+  approvedAt     DateTime?      @map("approved_at")     @db.Timestamptz
+
+  dispatchedAt   DateTime?      @map("dispatched_at")   @db.Timestamptz
+
+  receivedBy     String?        @map("received_by")     @db.Uuid
+  receiver       User?          @relation("TransferReceivedBy", fields: [receivedBy], references: [id])
+  receivedAt     DateTime?      @map("received_at")     @db.Timestamptz
+
+  //             Status
+  status         String         @map("status")          @default("pending") @db.VarChar(50)
+  // pending, approved, in_transit, received, rejected, cancelled
+
+  //             Totals
+  totalItems     Int            @map("total_items")     @default(0)
+
+  //             Metadata
+  reason         String?                                @db.Text
+  notes          String?                                @db.Text
+  createdAt      DateTime       @map("created_at")      @default(now()) @db.Timestamptz
+  updatedAt      DateTime       @map("updated_at")      @updatedAt @db.Timestamptz
+
+  //             Relations
+  items          TransferItem[]
+
+  @@map("inventory_transfers")
+  @@index([transferNumber])
+  @@index([fromStoreId])
+  @@index([toStoreId])
+  @@index([status])
+  @@index([transferDate])
+}
+
+model TransferItem {
+  id                  String                                         @id @default(uuid()) @db.Uuid
+
+  transferId          String            @map("transfer_id")          @db.Uuid
+  transfer            InventoryTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+
+  drugId              String            @map("drug_id")              @db.Uuid
+  drug                Drug              @relation(fields: [drugId], references: [id])
+
+  batchId             String            @map("batch_id")             @db.Uuid
+  batch               Batch             @relation(fields: [batchId], references: [id])
+
+  //                  Quantities
+  requestedQuantity   Decimal           @map("requested_quantity")   @db.Decimal(10, 2)
+  transferredQuantity Decimal?          @map("transferred_quantity") @db.Decimal(10, 2)
+  receivedQuantity    Decimal?          @map("received_quantity")    @db.Decimal(10, 2)
+
+  //                  Discrepancy
+  hasDiscrepancy      Boolean           @map("has_discrepancy")      @default(false)
+  discrepancyReason   String?           @map("discrepancy_reason")   @db.Text
+
+  createdAt           DateTime          @map("created_at")           @default(now()) @db.Timestamptz
+  updatedAt           DateTime          @map("updated_at")           @updatedAt @db.Timestamptz
+
+  @@map("transfer_items")
+  @@index([transferId])
+  @@index([drugId])
+  @@index([batchId])
+}
+
+// ============================================================================
+// INVENTORY ADJUSTMENTS
+// ============================================================================
+
+model InventoryAdjustment {
+  id               String                                     @id @default(uuid()) @db.Uuid
+
+  // Adjustment Identification
+  adjustmentNumber String           @map("adjustment_number") @unique @db.VarChar(50)
+
+  //               Store
+  storeId          String           @map("store_id")          @db.Uuid
+  store            Store            @relation(fields: [storeId], references: [id])
+
+  // Adjustment Details
+  adjustmentDate   DateTime         @map("adjustment_date")   @default(now()) @db.Timestamptz
+  adjustmentType   String           @map("adjustment_type")   @db.VarChar(50)
+  // physical_count, damage, expiry, theft, correction, disposal
+
+  //               Workflow
+  performedBy      String           @map("performed_by")      @db.Uuid
+  performer        User             @relation(fields: [performedBy], references: [id])
+
+  approvedBy       String?          @map("approved_by")       @db.Uuid
+  approvedAt       DateTime?        @map("approved_at")       @db.Timestamptz
+
+  //               Status
+  status           String           @map("status")            @default("pending") @db.VarChar(50)
+  // pending, approved, rejected
+
+  //               Reason
+  reason           String           @map("reason")            @db.Text
+
+  // Supporting Documents
+  documentUrls     Json?            @map("document_urls")     @db.JsonB
+  photoUrls        Json?            @map("photo_urls")        @db.JsonB
+
+  //               Totals
+  totalItems       Int              @map("total_items")       @default(0)
+  totalVariance    Decimal?         @map("total_variance")    @db.Decimal(12, 2)
+
+  //               Metadata
+  notes            String?                                    @db.Text
+  createdAt        DateTime         @map("created_at")        @default(now()) @db.Timestamptz
+  updatedAt        DateTime         @map("updated_at")        @updatedAt @db.Timestamptz
+
+  //               Relations
+  items            AdjustmentItem[]
+
+  @@map("inventory_adjustments")
+  @@index([adjustmentNumber])
+  @@index([storeId])
+  @@index([status])
+  @@index([adjustmentType])
+  @@index([adjustmentDate])
+}
+
+model AdjustmentItem {
+  id               String                                        @id @default(uuid()) @db.Uuid
+
+  adjustmentId     String              @map("adjustment_id")     @db.Uuid
+  adjustment       InventoryAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+
+  drugId           String              @map("drug_id")           @db.Uuid
+  drug             Drug                @relation(fields: [drugId], references: [id])
+
+  batchId          String              @map("batch_id")          @db.Uuid
+  batch            Batch               @relation(fields: [batchId], references: [id])
+
+  //               Quantities
+  systemQuantity   Decimal             @map("system_quantity")   @db.Decimal(10, 2)
+  physicalQuantity Decimal             @map("physical_quantity") @db.Decimal(10, 2)
+  varianceQuantity Decimal             @map("variance_quantity") @db.Decimal(10, 2) // physicalQuantity - systemQuantity
+
+  //               Reason
+  varianceReason   String?             @map("variance_reason")   @db.Text
+
+  createdAt        DateTime            @map("created_at")        @default(now()) @db.Timestamptz
+  updatedAt        DateTime            @map("updated_at")        @updatedAt @db.Timestamptz
+
+  @@map("adjustment_items")
+  @@index([adjustmentId])
+  @@index([drugId])
+  @@index([batchId])
+}
+
+// ============================================================================
+// AUDIT & COMPLIANCE
+// ============================================================================
+
+model AuditLog {
+  id          String                        @id @default(uuid()) @db.Uuid
+
+  //          Who
+  userId      String   @map("user_id")      @db.Uuid
+  user        User     @relation(fields: [userId], references: [id])
+
+  //          What
+  action      String                        @db.VarChar(100) // create, update, delete, approve, reject, dispatch, etc.
+  entityType  String   @map("entity_type")  @db.VarChar(100) // Order, GRN, Batch, etc.
+  entityId    String   @map("entity_id")    @db.Uuid
+
+  //          Changes
+  beforeValue Json?    @map("before_value") @db.JsonB
+  afterValue  Json?    @map("after_value")  @db.JsonB
+
+  //          Context
+  ipAddress   String?  @map("ip_address")   @db.VarChar(45)
+  userAgent   String?  @map("user_agent")   @db.Text
+  requestId   String?  @map("request_id")   @db.Uuid
+
+  //          When
+  createdAt   DateTime @map("created_at")   @default(now()) @db.Timestamptz
+
+  @@map("audit_logs")
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// NOTIFICATIONS & ALERTS
+// ============================================================================
+
+model Notification {
+  id           String                          @id @default(uuid()) @db.Uuid
+
+  //           Recipient
+  userId       String    @map("user_id")       @db.Uuid
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Notification Content
+  type         String                          @db.VarChar(100) // expiry_alert, low_stock, order_approval, etc.
+  priority     String                          @default("normal") @db.VarChar(50) // critical, high, normal, low
+  title        String                          @db.VarChar(255)
+  message      String                          @db.Text
+
+  //           Context
+  entityType   String?   @map("entity_type")   @db.VarChar(100)
+  entityId     String?   @map("entity_id")     @db.Uuid
+  data         Json?                           @db.JsonB // Additional structured data
+
+  //           Actions
+  actionUrl    String?   @map("action_url")    @db.VarChar(500)
+  actionLabel  String?   @map("action_label")  @db.VarChar(100)
+
+  //           Status
+  isRead       Boolean   @map("is_read")       @default(false)
+  readAt       DateTime? @map("read_at")       @db.Timestamptz
+
+  //           Delivery
+  channels     Json?                           @db.JsonB // Array: [in_app, email, sms, push]
+  emailSent    Boolean?  @map("email_sent")
+  smsSent      Boolean?  @map("sms_sent")
+  pushSent     Boolean?  @map("push_sent")
+
+  //           Scheduling
+  scheduledFor DateTime? @map("scheduled_for") @db.Timestamptz
+  sentAt       DateTime? @map("sent_at")       @db.Timestamptz
+
+  //           Expiry
+  expiresAt    DateTime? @map("expires_at")    @db.Timestamptz
+
+  createdAt    DateTime  @map("created_at")    @default(now()) @db.Timestamptz
+
+  @@map("notifications")
+  @@index([userId, isRead])
+  @@index([type])
+  @@index([priority])
+  @@index([scheduledFor])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// SYSTEM CONFIGURATION
+// ============================================================================
+
+model SystemConfiguration {
+  id          Int                                                     @id @default(autoincrement())
+
+  // Configuration Key
+  key         String                                                  @unique @db.VarChar(255)
+  value       Json                                                    @db.JsonB
+
+  //          Metadata
+  category    String                                                  @db.VarChar(100) // security, notifications, business_rules, etc.
+  description String?                                                 @db.Text
+  dataType    String   @map("data_type")                              @db.VarChar(50) // string, number, boolean, json
+
+  // Access Control
+  isSystem    Boolean  @map("is_system") // Cannot be modified via UI @default(false)
+  isEncrypted Boolean  @map("is_encrypted")                           @default(false)
+
+  // Version Control
+  version     Int                                                     @default(1)
+  updatedBy   String?  @map("updated_by")                             @db.Uuid
+
+  createdAt   DateTime @map("created_at")                             @default(now()) @db.Timestamptz
+  updatedAt   DateTime @map("updated_at")                             @updatedAt @db.Timestamptz
+
+  @@map("system_configurations")
+  @@index([category])
+}
