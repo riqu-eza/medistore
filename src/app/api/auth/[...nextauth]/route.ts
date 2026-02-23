@@ -3,6 +3,6 @@
 // File: src/app/api/auth/[...nextauth]/route.ts
 // ============================================================================
 
-import { handlers } from '@/lib/auth/auth'
+import { GET, POST } from '@/lib/auth/auth'
 
-export const { GET, POST } = handlers
+export { GET, POST }
