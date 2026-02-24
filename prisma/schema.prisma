@@ -42,6 +42,7 @@ model User {
   isActive              Boolean               @map("is_active")          @default(true)
   isLocked              Boolean               @map("is_locked")          @default(false)
   failedAttempts        Int                   @map("failed_attempts")    @default(0)
+  lockedAt              DateTime?             @map("locked_at")          @db.Timestamptz
   lastLogin             DateTime?             @map("last_login")         @db.Timestamptz
 
   //                    MFA
@@ -1238,7 +1239,7 @@ model AuditLog {
   ipAddress   String?  @map("ip_address")   @db.VarChar(45)
   userAgent   String?  @map("user_agent")   @db.Text
   requestId   String?  @map("request_id")   @db.Uuid
-
+  metadata    Json?    @db.JsonB // Additional structured data
   //          When
   createdAt   DateTime @map("created_at")   @default(now()) @db.Timestamptz
 

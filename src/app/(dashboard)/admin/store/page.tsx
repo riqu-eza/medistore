@@ -39,9 +39,7 @@ export default async function StoresPage() {
                   <ServerStackIcon className="w-5 h-5 text-purple-200" />
                   <span className="text-sm font-medium">Total Stores</span>
                 </div>
-                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2">
-                  <span className="text-sm font-medium">Temperature Monitoring</span>
-                </div>
+               
                 <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2">
                   <ShieldCheckIcon className="w-5 h-5 text-purple-200" />
                   <span className="text-sm font-medium">Controlled Substances</span>
@@ -52,7 +50,7 @@ export default async function StoresPage() {
             {/* Action buttons */}
             <div className="flex items-center gap-3">
               <Link
-                href="/admin/stores/create"
+                href="/admin/store/create"
                 className="inline-flex items-center gap-2 bg-white text-purple-600 px-5 py-2.5 rounded-xl font-semibold hover:bg-purple-50 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl"
               >
                 <PlusIcon className="w-5 h-5" />

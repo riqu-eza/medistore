@@ -147,9 +147,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise <{ id: string }> }
 ) {
   try {
+    const {id} = await context.params
     const session = await auth()
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -161,7 +162,7 @@ export async function PATCH(
 
     // Get existing store
     const existingStore = await prisma.store.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!existingStore) {
@@ -231,7 +232,7 @@ export async function PATCH(
       }
 
       // Prevent circular reference
-      if (body.parentStoreId === params.id) {
+      if (body.parentStoreId === id) {
         return NextResponse.json(
           { error: 'Store cannot be its own parent' },
           { status: 400 }
@@ -239,20 +240,65 @@ export async function PATCH(
       }
     }
 
-    // Validate manager exists
-    if (body.managerId) {
-      const manager = await prisma.user.findUnique({
-        where: { id: body.managerId },
-      })
+     if (body.managerId !== undefined && body.managerId !== existingStore.managerId) {
+      
+      // Case 1: Removing manager (setting to null or empty string)
+      if (!body.managerId || body.managerId === '') {
+        // Remove storeId from current manager if exists
+        if (existingStore.managerId) {
+          await prisma.user.update({
+            where: { id: existingStore.managerId },
+            data: { storeId: null }
+          })
+        }
+      } 
+      // Case 2: Assigning new manager
+      else {
+        // Validate new manager exists and has store manager role
+        const newManager = await prisma.user.findUnique({
+          where: { id: body.managerId },
+          include: { role: true }
+        })
 
-      if (!manager) {
-        return NextResponse.json(
-          { error: 'Manager not found' },
-          { status: 404 }
-        )
+        if (!newManager) {
+          return NextResponse.json(
+            { error: 'Manager not found' },
+            { status: 404 }
+          )
+        }
+
+        // Verify the user has store manager role (roleId = 3)
+        if (newManager.roleId !== 3) {
+          return NextResponse.json(
+            { error: 'Selected user does not have the Store Manager role' },
+            { status: 400 }
+          )
+        }
+
+        // If there was a previous manager, remove their store assignment
+        if (existingStore.managerId) {
+          await prisma.user.update({
+            where: { id: existingStore.managerId },
+            data: { storeId: null }
+          })
+        }
+
+        // If new manager was assigned to another store, remove that assignment first
+        if (newManager.storeId && newManager.storeId !== id) {
+          await prisma.user.update({
+            where: { id: body.managerId },
+            data: { storeId: null }
+          })
+        }
+
+        // Assign new manager to this store
+        await prisma.user.update({
+          where: { id: body.managerId },
+          data: { storeId: id }
+        })
       }
     }
-
+   
     // Build update data
     const updateData: any = {}
 
@@ -326,7 +372,7 @@ export async function PATCH(
 
     // Update store
     const store = await prisma.store.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
       include: {
         _count: {

@@ -1,8 +1,9 @@
-'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+"use client";
 
-import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   BuildingStorefrontIcon,
   ArrowLeftIcon,
@@ -21,214 +22,232 @@ import {
   ArrowPathIcon,
   PlusIcon,
   UsersIcon,
-} from '@heroicons/react/24/outline'
-import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
+} from "@heroicons/react/24/outline";
+import { CheckCircleIcon as CheckCircleSolid } from "@heroicons/react/24/solid";
 
 interface Store {
-  id: string
-  name: string
-  code: string
-  storeType: 'cold' | 'general' | 'controlled' | 'receiving'
-  temperatureMin: number | null
-  temperatureMax: number | null
-  humidityMin: number | null
-  humidityMax: number | null
-  totalCapacity: number | null
-  currentUtilization: number | null
-  allowsControlled: boolean
-  allowsDispatch: boolean
-  isReceivingZone: boolean
-  isActive: boolean
-  address: any | null
+  id: string;
+  name: string;
+  code: string;
+  storeType: "cold" | "general" | "controlled" | "receiving";
+  temperatureMin: number | null;
+  temperatureMax: number | null;
+  humidityMin: number | null;
+  humidityMax: number | null;
+  totalCapacity: number | null;
+  currentUtilization: number | null;
+  allowsControlled: boolean;
+  allowsDispatch: boolean;
+  isReceivingZone: boolean;
+  isActive: boolean;
+  address: any | null;
   manager: {
-    id: string
-    name: string
-    email: string
-  } | null
+    id: string;
+    name: string;
+    email: string;
+  } | null;
   parentStore: {
-    id: string
-    name: string
-    code: string
-  } | null
+    id: string;
+    name: string;
+    code: string;
+  } | null;
   childStores: Array<{
-    id: string
-    name: string
-    code: string
-    storeType: string
-  }>
+    id: string;
+    name: string;
+    code: string;
+    storeType: string;
+  }>;
   users: Array<{
-    id: string
-    name: string
-    email: string
+    id: string;
+    name: string;
+    email: string;
     role: {
-      name: string
-      displayName: string
-    }
-    isActive: boolean
-  }>
+      name: string;
+      displayName: string;
+    };
+    isActive: boolean;
+  }>;
   inventory: Array<{
-    id: string
+    id: string;
     drug: {
-      drugCode: string
-      genericName: string
-    }
+      drugCode: string;
+      genericName: string;
+    };
     batch: {
-      batchNumber: string
-      expiryDate: string
-    }
-    availableQuantity: number
-    reservedQuantity: number
-    totalQuantity: number
-    isExpired: boolean
-    isNearExpiry: boolean
-  }>
+      batchNumber: string;
+      expiryDate: string;
+    };
+    availableQuantity: number;
+    reservedQuantity: number;
+    totalQuantity: number;
+    isExpired: boolean;
+    isNearExpiry: boolean;
+  }>;
   recentTemperatures: Array<{
-    id: string
-    temperature: number
-    humidity: number | null
-    recordedAt: string
-    isAlert: boolean
-  }>
+    id: string;
+    temperature: number;
+    humidity: number | null;
+    recordedAt: string;
+    isAlert: boolean;
+  }>;
   _count: {
-    users: number
-    inventory: number
-    batches: number
-    ledgerEntries: number
-    ordersFrom: number
-    transfersFrom: number
-    transfersTo: number
-    adjustments: number
-    temperatureLogs: number
-  }
+    users: number;
+    inventory: number;
+    batches: number;
+    ledgerEntries: number;
+    ordersFrom: number;
+    transfersFrom: number;
+    transfersTo: number;
+    adjustments: number;
+    temperatureLogs: number;
+  };
 }
 
 export default function StoreDetailsPage() {
-  const params = useParams()
-  const router = useRouter()
-  const [store, setStore] = useState<Store | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('overview')
-  const [showUserModal, setShowUserModal] = useState(false)
-  const [availableUsers, setAvailableUsers] = useState<any[]>([])
-  const [updating, setUpdating] = useState(false)
-  const [timeRange, setTimeRange] = useState('24h')
-console.log('StoreDetailsPage params:', params)
+  const params = useParams();
+  const router = useRouter();
+  const [store, setStore] = useState<Store | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [updating, setUpdating] = useState(false);
+  const [timeRange, setTimeRange] = useState("24h");
+  console.log("StoreDetailsPage params:", params);
   useEffect(() => {
-    loadStore()
-  }, [params.id])
+    loadStore();
+  }, [params.id]);
 
   async function loadStore() {
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await fetch(`/api/admin/stores/${params.id}`)
-      const data = await res.json()
-      setStore(data)
-      console.log('Loaded store:', data)
+      const res = await fetch(`/api/admin/stores/${params.id}`);
+      const data = await res.json();
+      const normalizedStore: Store = {
+        ...data,
+
+        // unify temperatures → always available
+        recentTemperatures:
+          data.recentTemperatures ?? data.temperatureLogs ?? [],
+
+        // ensure numbers (Prisma decimals come as strings)
+        temperatureMin: data.temperatureMin
+          ? Number(data.temperatureMin)
+          : null,
+        temperatureMax: data.temperatureMax
+          ? Number(data.temperatureMax)
+          : null,
+        humidityMin: data.humidityMin ? Number(data.humidityMin) : null,
+        humidityMax: data.humidityMax ? Number(data.humidityMax) : null,
+      };
+
+      setStore(normalizedStore);
+      console.log("Loaded store:", data);
     } catch (error) {
-      console.error('Failed to load store:', error)
+      console.error("Failed to load store:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   async function loadAvailableUsers() {
     try {
-      const res = await fetch(`/api/admin/stores/${params.id}/users`)
-      const data = await res.json()
-      setAvailableUsers(data.users)
+      const res = await fetch(`/api/admin/stores/${params.id}/users`);
+      const data = await res.json();
+      setAvailableUsers(data.users);
     } catch (error) {
-      console.error('Failed to load users:', error)
+      console.error("Failed to load users:", error);
     }
   }
 
   async function assignUser(userId: string) {
-    setUpdating(true)
+    setUpdating(true);
     try {
       await fetch(`/api/admin/stores/${params.id}/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, action: 'assign' }),
-      })
-      await loadStore()
-      await loadAvailableUsers()
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, action: "assign" }),
+      });
+      await loadStore();
+      await loadAvailableUsers();
     } catch (error) {
-      console.error('Failed to assign user:', error)
+      console.error("Failed to assign user:", error);
     } finally {
-      setUpdating(false)
+      setUpdating(false);
     }
   }
 
   async function removeUser(userId: string) {
-    setUpdating(true)
+    setUpdating(true);
     try {
       await fetch(`/api/admin/stores/${params.id}/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, action: 'remove' }),
-      })
-      await loadStore()
-      await loadAvailableUsers()
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, action: "remove" }),
+      });
+      await loadStore();
+      await loadAvailableUsers();
     } catch (error) {
-      console.error('Failed to remove user:', error)
+      console.error("Failed to remove user:", error);
     } finally {
-      setUpdating(false)
+      setUpdating(false);
     }
   }
 
   const openUserModal = async () => {
-    await loadAvailableUsers()
-    setShowUserModal(true)
-  }
+    await loadAvailableUsers();
+    setShowUserModal(true);
+  };
 
   const getStoreTypeIcon = (type: string) => {
     switch (type) {
-      case 'cold':
-        return '❄️'
-      case 'general':
-        return '🏢'
-      case 'controlled':
-        return '🔒'
-      case 'receiving':
-        return '📦'
+      case "cold":
+        return "❄️";
+      case "general":
+        return "🏢";
+      case "controlled":
+        return "🔒";
+      case "receiving":
+        return "📦";
       default:
-        return '🏪'
+        return "🏪";
     }
-  }
+  };
 
   const getStoreTypeColor = (type: string) => {
     switch (type) {
-      case 'cold':
-        return 'bg-cyan-100 text-cyan-800'
-      case 'general':
-        return 'bg-gray-100 text-gray-800'
-      case 'controlled':
-        return 'bg-red-100 text-red-800'
-      case 'receiving':
-        return 'bg-green-100 text-green-800'
+      case "cold":
+        return "bg-cyan-100 text-cyan-800";
+      case "general":
+        return "bg-gray-100 text-gray-800";
+      case "controlled":
+        return "bg-red-100 text-red-800";
+      case "receiving":
+        return "bg-green-100 text-green-800";
       default:
-        return 'bg-purple-100 text-purple-800'
+        return "bg-purple-100 text-purple-800";
     }
-  }
+  };
 
   const getTemperatureStatus = (temp: number) => {
-    if (!store) return 'normal'
-    if (store.temperatureMin && temp < store.temperatureMin) return 'low'
-    if (store.temperatureMax && temp > store.temperatureMax) return 'high'
-    return 'normal'
-  }
+    if (!store) return "normal";
+    if (store.temperatureMin && temp < store.temperatureMin) return "low";
+    if (store.temperatureMax && temp > store.temperatureMax) return "high";
+    return "normal";
+  };
 
   const getTemperatureColor = (status: string) => {
     switch (status) {
-      case 'normal':
-        return 'text-green-600 bg-green-50'
-      case 'high':
-        return 'text-red-600 bg-red-50'
-      case 'low':
-        return 'text-blue-600 bg-blue-50'
+      case "normal":
+        return "text-green-600 bg-green-50";
+      case "high":
+        return "text-red-600 bg-red-50";
+      case "low":
+        return "text-blue-600 bg-blue-50";
       default:
-        return 'text-gray-600 bg-gray-50'
+        return "text-gray-600 bg-gray-50";
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -238,7 +257,7 @@ console.log('StoreDetailsPage params:', params)
           <p className="text-gray-600 font-medium">Loading store details...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (!store) {
@@ -256,17 +275,17 @@ console.log('StoreDetailsPage params:', params)
           </Link>
         </div>
       </div>
-    )
+    );
   }
 
   const tabs = [
-    { id: 'overview', name: 'Overview', icon: BuildingStorefrontIcon },
-    { id: 'inventory', name: 'Inventory', icon: CubeIcon },
-    { id: 'users', name: 'Users', icon: UserGroupIcon },
-    { id: 'environmental', name: 'Environmental', },
-    { id: 'transfers', name: 'Transfers', icon: TruckIcon },
-    { id: 'audit', name: 'Audit Log', icon: DocumentTextIcon },
-  ]
+    { id: "overview", name: "Overview", icon: BuildingStorefrontIcon },
+    { id: "inventory", name: "Inventory", icon: CubeIcon },
+    { id: "users", name: "Users", icon: UserGroupIcon },
+    // { id: "environmental", name: "Environmental", icon: BeakerIcon },
+    { id: "transfers", name: "Transfers", icon: TruckIcon },
+    { id: "audit", name: "Audit Log", icon: DocumentTextIcon },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -276,16 +295,22 @@ console.log('StoreDetailsPage params:', params)
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link
-                href="/admin/stores"
+                href="/admin/store"
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <ArrowLeftIcon className="w-5 h-5 text-gray-600" />
               </Link>
               <div>
                 <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-gray-900">{store.name}</h1>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStoreTypeColor(store.storeType)}`}>
-                    {getStoreTypeIcon(store.storeType)} {store.storeType.charAt(0).toUpperCase() + store.storeType.slice(1)}
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    {store.name}
+                  </h1>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${getStoreTypeColor(store.storeType)}`}
+                  >
+                    {getStoreTypeIcon(store.storeType)}{" "}
+                    {store.storeType.charAt(0).toUpperCase() +
+                      store.storeType.slice(1)}
                   </span>
                   {store.isActive ? (
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -303,7 +328,7 @@ console.log('StoreDetailsPage params:', params)
               </div>
             </div>
             <Link
-              href={`/admin/stores/${store.id}/edit`}
+              href={`/admin/store/${store.id}/edit`}
               className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
             >
               <PencilIcon className="w-4 h-4" />
@@ -323,16 +348,19 @@ console.log('StoreDetailsPage params:', params)
                 onClick={() => setActiveTab(tab.id)}
                 className={`
                   group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
-                  ${activeTab === tab.id
-                    ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ${
+                    activeTab === tab.id
+                      ? "border-purple-500 text-purple-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                   }
                 `}
               >
-                <tab.icon className={`
+                <tab.icon
+                  className={`
                   w-5 h-5 mr-2
-                  ${activeTab === tab.id ? 'text-purple-500' : 'text-gray-400 group-hover:text-gray-500'}
-                `} />
+                  ${activeTab === tab.id ? "text-purple-500" : "text-gray-400 group-hover:text-gray-500"}
+                `}
+                />
                 {tab.name}
               </button>
             ))}
@@ -343,7 +371,7 @@ console.log('StoreDetailsPage params:', params)
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Overview Tab */}
-        {activeTab === 'overview' && (
+        {activeTab === "overview" && (
           <div className="space-y-6">
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -354,7 +382,9 @@ console.log('StoreDetailsPage params:', params)
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Users</p>
-                    <p className="text-2xl font-bold text-gray-900">{store._count.users}</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {store._count.users}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -366,7 +396,9 @@ console.log('StoreDetailsPage params:', params)
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Inventory Items</p>
-                    <p className="text-2xl font-bold text-gray-900">{store._count.inventory}</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {store._count.inventory}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -385,46 +417,55 @@ console.log('StoreDetailsPage params:', params)
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              {/* <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-yellow-100 rounded-lg">
-                    {/* <ThermometerIcon className="w-6 h-6 text-yellow-600" /> */}
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Temperature Logs</p>
-                    <p className="text-2xl font-bold text-gray-900">{store._count.temperatureLogs}</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {store._count.temperatureLogs}
+                    </p>
                   </div>
                 </div>
-              </div>
+              </div> */}
             </div>
 
             {/* Store Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Store Details</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                  Store Details
+                </h2>
                 <dl className="space-y-3">
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Store Name</dt>
-                    <dd className="text-sm font-medium text-gray-900">{store.name}</dd>
+                    <dd className="text-sm font-medium text-gray-900">
+                      {store.name}
+                    </dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Store Code</dt>
-                    <dd className="text-sm font-medium text-gray-900">{store.code}</dd>
+                    <dd className="text-sm font-medium text-gray-900">
+                      {store.code}
+                    </dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Store Type</dt>
-                    <dd className="text-sm font-medium text-gray-900 capitalize">{store.storeType}</dd>
+                    <dd className="text-sm font-medium text-gray-900 capitalize">
+                      {store.storeType}
+                    </dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Manager</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {store.manager ? store.manager.name : 'Not assigned'}
+                      {store.manager ? store.manager.name : "Not assigned"}
                     </dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Parent Store</dt>
                     <dd className="text-sm font-medium text-gray-900">
-                      {store.parentStore ? store.parentStore.name : 'None'}
+                      {store.parentStore ? store.parentStore.name : "None"}
                     </dd>
                   </div>
                   {/* <div className="flex justify-between">
@@ -437,7 +478,9 @@ console.log('StoreDetailsPage params:', params)
               </div>
 
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Capabilities</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                  Capabilities
+                </h2>
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     {store.allowsControlled ? (
@@ -445,7 +488,9 @@ console.log('StoreDetailsPage params:', params)
                     ) : (
                       <XCircleIcon className="w-5 h-5 text-red-500" />
                     )}
-                    <span className="text-sm text-gray-700">Controlled Substances</span>
+                    <span className="text-sm text-gray-700">
+                      Controlled Substances
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     {store.allowsDispatch ? (
@@ -453,7 +498,9 @@ console.log('StoreDetailsPage params:', params)
                     ) : (
                       <XCircleIcon className="w-5 h-5 text-red-500" />
                     )}
-                    <span className="text-sm text-gray-700">Dispatch Operations</span>
+                    <span className="text-sm text-gray-700">
+                      Dispatch Operations
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     {store.isReceivingZone ? (
@@ -461,14 +508,21 @@ console.log('StoreDetailsPage params:', params)
                     ) : (
                       <XCircleIcon className="w-5 h-5 text-red-500" />
                     )}
-                    <span className="text-sm text-gray-700">Receiving Zone</span>
+                    <span className="text-sm text-gray-700">
+                      Receiving Zone
+                    </span>
                   </div>
                   {store.address && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
-                      <h3 className="text-sm font-medium text-gray-700 mb-2">Address</h3>
+                      <h3 className="text-sm font-medium text-gray-700 mb-2">
+                        Address
+                      </h3>
                       <p className="text-sm text-gray-600">
-                        {store.address.street}<br />
-                        {store.address.city}, {store.address.state} {store.address.postalCode}<br />
+                        {store.address.street}
+                        <br />
+                        {store.address.city}, {store.address.state}{" "}
+                        {store.address.postalCode}
+                        <br />
                         {store.address.country}
                       </p>
                     </div>
@@ -477,9 +531,11 @@ console.log('StoreDetailsPage params:', params)
               </div>
 
               {/* Temperature Chart */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:col-span-2">
+              {/* <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:col-span-2">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">Recent Temperature Readings</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Recent Temperature Readings
+                  </h2>
                   <select
                     value={timeRange}
                     onChange={(e) => setTimeRange(e.target.value)}
@@ -492,33 +548,41 @@ console.log('StoreDetailsPage params:', params)
                 </div>
                 <div className="h-48 flex items-end gap-2">
                   {store.recentTemperatures.slice(0, 24).map((log, index) => {
-                    const status = getTemperatureStatus(log.temperature)
-                    const maxTemp = store.temperatureMax || 25
-                    const minTemp = store.temperatureMin || 2
-                    const range = maxTemp - minTemp
-                    const normalizedTemp = ((log.temperature - minTemp) / range) * 100
-                    const height = Math.min(100, Math.max(20, normalizedTemp))
-                    
+                    const status = getTemperatureStatus(log.temperature);
+                    const maxTemp = store.temperatureMax || 25;
+                    const minTemp = store.temperatureMin || 2;
+                    const range = maxTemp - minTemp;
+                    const normalizedTemp =
+                      ((log.temperature - minTemp) / range) * 100;
+                    const height = Math.min(100, Math.max(20, normalizedTemp));
+
                     return (
-                      <div key={log.id} className="flex-1 flex flex-col items-center group relative">
+                      <div
+                        key={log.id}
+                        className="flex-1 flex flex-col items-center group relative"
+                      >
                         <div className="relative w-full">
                           <div
                             className={`
                               w-full rounded-t-lg transition-all group-hover:opacity-80 cursor-pointer
-                              ${status === 'normal' ? 'bg-green-500' : ''}
-                              ${status === 'high' ? 'bg-red-500' : ''}
-                              ${status === 'low' ? 'bg-blue-500' : ''}
+                              ${status === "normal" ? "bg-green-500" : ""}
+                              ${status === "high" ? "bg-red-500" : ""}
+                              ${status === "low" ? "bg-blue-500" : ""}
                             `}
                             style={{ height: `${height}%` }}
                           />
                           {log.isAlert && (
                             <ExclamationTriangleIcon className="w-4 h-4 text-yellow-500 absolute -top-2 -right-2" />
                           )}
-                          {/* Tooltip */}
                           <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10">
                             <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
-                              <div>{new Date(log.recordedAt).toLocaleString()}</div>
-                              <div>{log.temperature}°C {log.humidity ? `/${log.humidity}%` : ''}</div>
+                              <div>
+                                {new Date(log.recordedAt).toLocaleString()}
+                              </div>
+                              <div>
+                                {log.temperature}°C{" "}
+                                {log.humidity ? `/${log.humidity}%` : ""}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -526,7 +590,7 @@ console.log('StoreDetailsPage params:', params)
                           {new Date(log.recordedAt).getHours()}:00
                         </span>
                       </div>
-                    )
+                    );
                   })}
                 </div>
                 <div className="flex items-center justify-between mt-4 text-sm">
@@ -548,16 +612,18 @@ console.log('StoreDetailsPage params:', params)
                     Range: {store.temperatureMin}°C - {store.temperatureMax}°C
                   </div>
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
         )}
 
         {/* Inventory Tab */}
-        {activeTab === 'inventory' && (
+        {activeTab === "inventory" && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-900">Current Inventory</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Current Inventory
+              </h2>
               <Link
                 href={`/admin/stores/${store.id}/inventory/add`}
                 className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
@@ -570,14 +636,30 @@ console.log('StoreDetailsPage params:', params)
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Drug</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Batch</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiry</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Available</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reserved</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Drug
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Batch
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Expiry
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Available
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Reserved
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Total
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -597,10 +679,15 @@ console.log('StoreDetailsPage params:', params)
                         {item.batch.batchNumber}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`text-sm ${
-                          item.isExpired ? 'text-red-600' : 
-                          item.isNearExpiry ? 'text-yellow-600' : 'text-gray-600'
-                        }`}>
+                        <span
+                          className={`text-sm ${
+                            item.isExpired
+                              ? "text-red-600"
+                              : item.isNearExpiry
+                                ? "text-yellow-600"
+                                : "text-gray-600"
+                          }`}
+                        >
                           {new Date(item.batch.expiryDate).toLocaleDateString()}
                         </span>
                       </td>
@@ -642,10 +729,12 @@ console.log('StoreDetailsPage params:', params)
         )}
 
         {/* Users Tab */}
-        {activeTab === 'users' && (
+        {activeTab === "users" && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-900">Store Users</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Store Users
+              </h2>
               <button
                 onClick={openUserModal}
                 className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
@@ -658,20 +747,34 @@ console.log('StoreDetailsPage params:', params)
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Email
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Role
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {store.users.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {user.name}
+                        </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {user.email}
+                      </td>
                       <td className="px-6 py-4">
                         <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded">
                           {user.role.displayName}
@@ -706,58 +809,78 @@ console.log('StoreDetailsPage params:', params)
         )}
 
         {/* Environmental Tab */}
-        {activeTab === 'environmental' && (
+        {activeTab === "environmental" && (
           <div className="space-y-6">
             {/* Current Conditions */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Temperature Monitoring</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                  Temperature Monitoring
+                </h2>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
                     <div>
-                      <p className="text-sm text-gray-500">Current Temperature</p>
+                      <p className="text-sm text-gray-500">
+                        Current Temperature
+                      </p>
                       <p className="text-2xl font-bold text-gray-900">
-                        {store.recentTemperatures[0]?.temperature || '--'}°C
+                        {store.recentTemperatures[0]?.temperature || "--"}°C
                       </p>
                     </div>
-                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      getTemperatureColor(getTemperatureStatus(store.recentTemperatures[0]?.temperature || 0))
-                    }`}>
-                      {getTemperatureStatus(store.recentTemperatures[0]?.temperature || 0).toUpperCase()}
+                    <div
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${getTemperatureColor(
+                        getTemperatureStatus(
+                          store.recentTemperatures[0]?.temperature || 0,
+                        ),
+                      )}`}
+                    >
+                      {getTemperatureStatus(
+                        store.recentTemperatures[0]?.temperature || 0,
+                      ).toUpperCase()}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-500">Minimum Allowed</p>
-                      <p className="text-lg font-semibold text-gray-900">{store.temperatureMin || '--'}°C</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {store.temperatureMin || "--"}°C
+                      </p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Maximum Allowed</p>
-                      <p className="text-lg font-semibold text-gray-900">{store.temperatureMax || '--'}°C</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {store.temperatureMax || "--"}°C
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Humidity Monitoring</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                  Humidity Monitoring
+                </h2>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
                     <div>
                       <p className="text-sm text-gray-500">Current Humidity</p>
                       <p className="text-2xl font-bold text-gray-900">
-                        {store.recentTemperatures[0]?.humidity || '--'}%
+                        {store.recentTemperatures[0]?.humidity || "--"}%
                       </p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-500">Minimum Allowed</p>
-                      <p className="text-lg font-semibold text-gray-900">{store.humidityMin || '--'}%</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {store.humidityMin || "--"}%
+                      </p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Maximum Allowed</p>
-                      <p className="text-lg font-semibold text-gray-900">{store.humidityMax || '--'}%</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {store.humidityMax || "--"}%
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -765,57 +888,55 @@ console.log('StoreDetailsPage params:', params)
             </div>
 
             {/* Sensor Information */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Sensor Configuration</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm text-gray-500">Temperature Sensor ID</p>
-                  <p className="text-lg font-medium text-gray-900 mt-1">
-                    {store.temperatureSensorId || 'Not configured'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Humidity Sensor ID</p>
-                  <p className="text-lg font-medium text-gray-900 mt-1">
-                    {store.humiditySensorId || 'Not configured'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
+            
             {/* Temperature Logs */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Temperature History</h2>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Temperature History
+                </h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Temperature</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Humidity</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Time
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Temperature
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Humidity
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Status
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {store.recentTemperatures.map((log) => {
-                      const status = getTemperatureStatus(log.temperature)
+                      const status = getTemperatureStatus(log.temperature);
                       return (
                         <tr key={log.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 text-sm text-gray-600">
                             {new Date(log.recordedAt).toLocaleString()}
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`text-sm font-medium ${
-                              status === 'normal' ? 'text-green-600' :
-                              status === 'high' ? 'text-red-600' : 'text-blue-600'
-                            }`}>
+                            <span
+                              className={`text-sm font-medium ${
+                                status === "normal"
+                                  ? "text-green-600"
+                                  : status === "high"
+                                    ? "text-red-600"
+                                    : "text-blue-600"
+                              }`}
+                            >
                               {log.temperature}°C
                             </span>
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
-                            {log.humidity ? `${log.humidity}%` : '--'}
+                            {log.humidity ? `${log.humidity}%` : "--"}
                           </td>
                           <td className="px-6 py-4">
                             {log.isAlert ? (
@@ -830,7 +951,7 @@ console.log('StoreDetailsPage params:', params)
                             )}
                           </td>
                         </tr>
-                      )
+                      );
                     })}
                   </tbody>
                 </table>
@@ -840,25 +961,34 @@ console.log('StoreDetailsPage params:', params)
         )}
 
         {/* Transfers Tab */}
-        {activeTab === 'transfers' && (
+        {activeTab === "transfers" && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Transfer History</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Transfer History
+            </h2>
             <div className="text-center py-12 text-gray-500">
               <TruckIcon className="w-12 h-12 mx-auto mb-4 text-gray-400" />
               <p>Transfer history will be displayed here</p>
-              <p className="text-sm mt-2">Incoming: {store._count.transfersTo} | Outgoing: {store._count.transfersFrom}</p>
+              <p className="text-sm mt-2">
+                Incoming: {store._count.transfersTo} | Outgoing:{" "}
+                {store._count.transfersFrom}
+              </p>
             </div>
           </div>
         )}
 
         {/* Audit Tab */}
-        {activeTab === 'audit' && (
+        {activeTab === "audit" && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Audit Log</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Audit Log
+            </h2>
             <div className="text-center py-12 text-gray-500">
               <DocumentTextIcon className="w-12 h-12 mx-auto mb-4 text-gray-400" />
               <p>Audit log will be displayed here</p>
-              <p className="text-sm mt-2">Total entries: {store._count.ledgerEntries}</p>
+              <p className="text-sm mt-2">
+                Total entries: {store._count.ledgerEntries}
+              </p>
             </div>
           </div>
         )}
@@ -869,7 +999,9 @@ console.log('StoreDetailsPage params:', params)
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-900">Manage Store Users</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Manage Store Users
+              </h3>
               <button
                 onClick={() => setShowUserModal(false)}
                 className="p-1 hover:bg-gray-100 rounded-lg"
@@ -880,23 +1012,30 @@ console.log('StoreDetailsPage params:', params)
             <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
               <div className="space-y-4">
                 <h4 className="font-medium text-gray-700">Available Users</h4>
-                {availableUsers.filter(u => !u.storeId).map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-gray-900">{user.name}</p>
-                      <p className="text-sm text-gray-500">{user.email}</p>
-                    </div>
-                    <button
-                      onClick={() => assignUser(user.id)}
-                      disabled={updating}
-                      className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                {availableUsers
+                  .filter((u) => !u.storeId)
+                  .map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                     >
-                      Assign
-                    </button>
-                  </div>
-                ))}
-                {availableUsers.filter(u => !u.storeId).length === 0 && (
-                  <p className="text-center text-gray-500 py-4">No available users</p>
+                      <div>
+                        <p className="font-medium text-gray-900">{user.name}</p>
+                        <p className="text-sm text-gray-500">{user.email}</p>
+                      </div>
+                      <button
+                        onClick={() => assignUser(user.id)}
+                        disabled={updating}
+                        className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                      >
+                        Assign
+                      </button>
+                    </div>
+                  ))}
+                {availableUsers.filter((u) => !u.storeId).length === 0 && (
+                  <p className="text-center text-gray-500 py-4">
+                    No available users
+                  </p>
                 )}
               </div>
             </div>
@@ -904,5 +1043,5 @@ console.log('StoreDetailsPage params:', params)
         </div>
       )}
     </div>
-  )
+  );
 }

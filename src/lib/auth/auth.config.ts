@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // ============================================================================
 // AUTH CONFIGURATION - NextAuth.js v5
 // File: src/lib/auth/auth.config.ts
