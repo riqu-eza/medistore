@@ -73,7 +73,10 @@ export async function hasPermission(permission: string): Promise<boolean> {
 /**
  * Require specific permission or throw error
  */
-export async function requirePermission(permission: string) {
+export async function requirePermission(permission: string, user?: {
+    id: string; email: string; name: string; roleId: number; roleName: string; permissions: string[]; storeId: string | null // ============================================================================
+        ; storeName: string | null; requiresPasswordChange: boolean; mfaEnabled: boolean
+} | undefined) {
   const allowed = await hasPermission(permission)
   if (!allowed) {
     throw new Error(`Permission denied: ${permission}`)

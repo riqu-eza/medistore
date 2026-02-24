@@ -1,3 +1,4 @@
+import './globals.css'
 import { SessionProvider } from 'next-auth/react'
 import { auth } from '@/lib/auth/auth'
 

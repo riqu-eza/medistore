@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // ============================================================================
 // REGISTER PAGE - Complete Registration Flow
 // File: src/app/auth/register/page.tsx
@@ -43,7 +44,7 @@ type RegisterFormData = z.infer<typeof registerSchema>
 // COMPONENT
 // ============================================================================
 
-export default function RegisterPage() {
+export default function CreateUserForm() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,12 +54,11 @@ export default function RegisterPage() {
 
   // Available roles (in production, fetch from API)
   const roles = [
-    { id: 2, name: 'Store Manager' },
-    { id: 3, name: 'Receiving Officer' },
-    { id: 4, name: 'Dispatch Officer' },
-    { id: 5, name: 'Inventory Officer' },
+    { id: 2, name: 'inventory officer' },
+    { id: 3, name: 'Store Keeper' },
+    { id: 4, name: 'receiving Manager' },
+    { id: 5, name: 'Dispatch Officer' },
     { id: 6, name: 'Auditor' },
-    { id: 7, name: 'Viewer' },
   ]
 
   const {
@@ -150,7 +150,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Registration Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="mt-8 text-gray-700 space-y-6">
           <div className="space-y-4 rounded-md bg-white p-6 shadow">
             {/* Name */}
             <div>

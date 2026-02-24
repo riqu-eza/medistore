@@ -1,40 +1,64 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import { RoleService } from "@/lib/services/role.service"
+import { createRoleSchema } from "@/lib/validators/role.schema"
+import { z } from "zod"
 
-function buildRoleTree(roles: any[]) {
-  const map = new Map()
-  const roots: any[] = []
-
-  roles.forEach((role) => {
-    map.set(role.id, { ...role, children: [] })
-  })
-
-  roles.forEach((role) => {
-    if (role.parentId) {
-      const parent = map.get(role.parentId)
-      if (parent) {
-        parent.children.push(map.get(role.id))
-      }
-    } else {
-      roots.push(map.get(role.id))
-    }
-  })
-
-  return roots
-}
-
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const roles = await prisma.role.findMany({
-      orderBy: { createdAt: "asc" },
+    const { searchParams } = new URL(req.url)
+
+    const page = parseInt(searchParams.get("page") || "1")
+    const limit = parseInt(searchParams.get("limit") || "10")
+    const search = searchParams.get("search") || undefined
+
+    const result = await RoleService.findAll({
+      page,
+      limit,
+      search,
     })
 
-    const tree = buildRoleTree(roles)
-
-    return NextResponse.json(tree)
+    return NextResponse.json({
+      success: true,
+      data: result.data,
+      meta: result.meta,
+    })
   } catch (error: any) {
     return NextResponse.json(
-      { message: error.message },
+      { success: false, error: error.message },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json()
+    const data = createRoleSchema.parse(body)
+
+    const role = await RoleService.create(data)
+
+    return NextResponse.json(
+      { success: true, data: role },
+      { status: 201 }
+    )
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: error.flatten() },
+        { status: 422 }
+      )
+    }
+
+    if (error.code === "P2002") {
+      return NextResponse.json(
+        { success: false, error: "Role already exists" },
+        { status: 409 }
+      )
+    }
+
+    return NextResponse.json(
+      { success: false, error: error.message },
       { status: 500 }
     )
   }
