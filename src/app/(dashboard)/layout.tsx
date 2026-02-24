@@ -48,7 +48,7 @@ const getNavigationItems = (role: string): NavItem[] => {
     },
     {
       name: 'Stores',
-      href: '/stores',
+      href: '/admin/store',
       icon: <WarehouseIcon />,
       permission: PERMISSIONS.STORES_READ,
     },
