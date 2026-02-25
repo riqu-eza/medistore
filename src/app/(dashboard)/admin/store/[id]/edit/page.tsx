@@ -989,7 +989,7 @@ export default function EditStorePage() {
                       No managers assigned yet
                     </p>
                     <p className="text-sm text-gray-500 mt-1">
-                      Click "Manage Assignments" to add store managers
+                      Click &#34;Manage Assignments&#34; to add store managers
                     </p>
                   </div>
                 )}
@@ -1033,7 +1033,7 @@ export default function EditStorePage() {
                       About Store Manager Assignment
                     </h4>
                     <p className="text-sm text-blue-700 mt-1">
-                      Store managers have full access to this store's inventory,
+                      Store managers have full access to this store&#39;s inventory,
                       can process orders, and manage daily operations. Each
                       manager can only be assigned to one store at a time.
                       Assigning a manager to a new store will automatically
