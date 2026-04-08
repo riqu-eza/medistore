@@ -48,37 +48,33 @@ interface Store {
   temperatureSensorId: string | null;
   humiditySensorId: string | null;
   notes: string | null;
-  manager?: {
-    id: string;
-    name: string;
-    email: string;
-  } | null;
-  parentStore?: {
-    id: string;
-    name: string;
-    code: string;
-  } | null;
+  manager?: { id: string; name: string; email: string } | null;
+  parentStore?: { id: string; name: string; code: string } | null;
   users?: Array<{
     id: string;
     name: string;
     email: string;
-    role: {
-      displayName: string;
-    };
+    role: { displayName: string };
   }>;
+  allowedRoles?: string[]; // returned by updated GET route
 }
 
 interface User {
   id: string;
   name: string;
   email: string;
-  role: {
-    name: string;
-    displayName: string;
-  };
+  role: { name: string; displayName: string };
   storeId: string | null;
   isActive: boolean;
 }
+
+// ── Maps store type → the human-readable label for its manager role ──────────
+const MANAGER_ROLE_LABEL: Record<string, string> = {
+  general:    "Store Keeper",
+  cold:       "Store Keeper",
+  controlled: "Store Keeper",
+  receiving:  "Receiving Manager",
+};
 
 export default function EditStorePage() {
   const params = useParams();
@@ -95,6 +91,7 @@ export default function EditStorePage() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [updatingUser, setUpdatingUser] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+
   const storeId = String(params.id);
   const assignedUsers = users.filter((u) => u.storeId === storeId);
   const availableUsers = users
@@ -120,13 +117,7 @@ export default function EditStorePage() {
     allowsDispatch: true,
     isReceivingZone: false,
     isActive: true,
-    address: {
-      street: "",
-      city: "",
-      state: "",
-      country: "",
-      postalCode: "",
-    },
+    address: { street: "", city: "", state: "", country: "", postalCode: "" },
     parentStoreId: "",
     managerId: "",
     temperatureSensorId: "",
@@ -134,28 +125,26 @@ export default function EditStorePage() {
     notes: "",
   });
 
-  // Parent stores for dropdown
   const [parentStores, setParentStores] = useState<
     Array<{ id: string; name: string; code: string }>
   >([]);
-
-  // Available managers
   const [potentialManagers, setPotentialManagers] = useState<User[]>([]);
+
+  // ── FIX 3: load managers AFTER store loads, so storeType is known ─────────
   useEffect(() => {
-    loadStore();
+    loadStore().then((storeType) => {
+      if (storeType) loadPotentialManagers(storeType);
+    });
     loadParentStores();
-    loadPotentialManagers();
   }, [params.id]);
 
-  async function loadStore() {
+  // Returns the storeType so the caller can pass it to loadPotentialManagers
+  async function loadStore(): Promise<string | null> {
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/stores/${params.id}`);
       const data = await res.json();
-
       setStore(data);
-
-      // Populate form data
       setFormData({
         name: data.name || "",
         code: data.code || "",
@@ -170,21 +159,17 @@ export default function EditStorePage() {
         allowsDispatch: data.allowsDispatch !== false,
         isReceivingZone: data.isReceivingZone || false,
         isActive: data.isActive !== false,
-        address: data.address || {
-          street: "",
-          city: "",
-          state: "",
-          country: "",
-          postalCode: "",
-        },
+        address: data.address || { street: "", city: "", state: "", country: "", postalCode: "" },
         parentStoreId: data.parentStoreId || "",
         managerId: data.managerId || "",
         temperatureSensorId: data.temperatureSensorId || "",
         humiditySensorId: data.humiditySensorId || "",
         notes: data.notes || "",
       });
+      return data.storeType || "general"; // ← return so useEffect can use it
     } catch (error) {
       console.error("Failed to load store:", error);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -194,7 +179,6 @@ export default function EditStorePage() {
     try {
       const res = await fetch("/api/admin/stores?limit=100");
       const data = await res.json();
-      // Filter out current store and get all stores
       setParentStores(
         data.stores?.filter((s: Store) => s.id !== params.id) || [],
       );
@@ -203,9 +187,10 @@ export default function EditStorePage() {
     }
   }
 
-  async function loadPotentialManagers() {
+  // ── FIX 3 continued: accepts explicit storeType, never relies on state ────
+  async function loadPotentialManagers(storeType: string) {
     try {
-      const res = await fetch("/api/admin/users?role=3");
+      const res = await fetch(`/api/admin/users?storeType=${storeType}`);
       const data = await res.json();
       setPotentialManagers(data.data || []);
     } catch (error) {
@@ -218,7 +203,6 @@ export default function EditStorePage() {
     try {
       const res = await fetch(`/api/admin/users`);
       const data = await res.json();
-      console.log("Store users:", data.data);
       setUsers(data.data || []);
     } catch (error) {
       console.error("Failed to load users:", error);
@@ -235,10 +219,7 @@ export default function EditStorePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, action: "assign" }),
       });
-
-      if (res.ok) {
-        await loadStoreUsers();
-      }
+      if (res.ok) await loadStoreUsers();
     } catch (error) {
       console.error("Failed to assign user:", error);
     } finally {
@@ -254,10 +235,7 @@ export default function EditStorePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, action: "remove" }),
       });
-
-      if (res.ok) {
-        await loadStoreUsers();
-      }
+      if (res.ok) await loadStoreUsers();
     } catch (error) {
       console.error("Failed to remove user:", error);
     } finally {
@@ -266,9 +244,7 @@ export default function EditStorePage() {
   }
 
   const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
   ) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
@@ -277,10 +253,7 @@ export default function EditStorePage() {
       const field = name.split(".")[1];
       setFormData((prev) => ({
         ...prev,
-        address: {
-          ...prev.address,
-          [field]: value,
-        },
+        address: { ...prev.address, [field]: value },
       }));
     } else {
       setFormData((prev) => ({
@@ -289,7 +262,6 @@ export default function EditStorePage() {
       }));
     }
 
-    // Clear error for this field
     if (errors[name]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -299,40 +271,37 @@ export default function EditStorePage() {
     }
   };
 
+  // ── FIX 1: dedicated handler for storeType change ─────────────────────────
+  const handleStoreTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const storeType = e.target.value as typeof formData.storeType;
+
+    // Update storeType AND clear managerId (old manager may have wrong role)
+    setFormData((prev) => ({ ...prev, storeType, managerId: "" }));
+
+    // Reload manager dropdown filtered by the new store type
+    loadPotentialManagers(storeType);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setErrors({});
 
     try {
-      // Prepare data for API
       const submitData: any = {
         name: formData.name,
         code: formData.code,
         storeType: formData.storeType,
-        temperatureMin: formData.temperatureMin
-          ? parseFloat(formData.temperatureMin)
-          : null,
-        temperatureMax: formData.temperatureMax
-          ? parseFloat(formData.temperatureMax)
-          : null,
-        humidityMin: formData.humidityMin
-          ? parseFloat(formData.humidityMin)
-          : null,
-        humidityMax: formData.humidityMax
-          ? parseFloat(formData.humidityMax)
-          : null,
-        totalCapacity: formData.totalCapacity
-          ? parseFloat(formData.totalCapacity)
-          : null,
+        temperatureMin: formData.temperatureMin ? parseFloat(formData.temperatureMin) : null,
+        temperatureMax: formData.temperatureMax ? parseFloat(formData.temperatureMax) : null,
+        humidityMin: formData.humidityMin ? parseFloat(formData.humidityMin) : null,
+        humidityMax: formData.humidityMax ? parseFloat(formData.humidityMax) : null,
+        totalCapacity: formData.totalCapacity ? parseFloat(formData.totalCapacity) : null,
         allowsControlled: formData.allowsControlled,
         allowsDispatch: formData.allowsDispatch,
         isReceivingZone: formData.isReceivingZone,
         isActive: formData.isActive,
-        address:
-          formData.address.street || formData.address.city
-            ? formData.address
-            : null,
+        address: formData.address.street || formData.address.city ? formData.address : null,
         parentStoreId: formData.parentStoreId || null,
         managerId: formData.managerId || null,
         temperatureSensorId: formData.temperatureSensorId || null,
@@ -349,16 +318,13 @@ export default function EditStorePage() {
       const data = await res.json();
 
       if (!res.ok) {
-        if (data.error) {
-          setErrors({ form: data.error });
-        }
+        if (data.error) setErrors({ form: data.error });
         return;
       }
 
-      // Success - redirect to store details
       router.push(`/admin/store/${params.id}`);
       router.refresh();
-    } catch (error) {
+    } catch {
       setErrors({ form: "An unexpected error occurred" });
     } finally {
       setSaving(false);
@@ -367,7 +333,6 @@ export default function EditStorePage() {
 
   const tabs = [
     { id: "basic", name: "Basic Information", icon: BuildingStorefrontIcon },
-    // { id: "environmental", name: "Environmental" },
     { id: "capabilities", name: "Capabilities", icon: ShieldCheckIcon },
     { id: "address", name: "Address", icon: TruckIcon },
     { id: "users", name: "User Assignment", icon: UserGroupIcon },
@@ -441,10 +406,6 @@ export default function EditStorePage() {
                   }
                 `}
               >
-                {/* <tab.icon className={`
-                  w-5 h-5 mr-2
-                  ${activeTab === tab.id ? 'text-purple-500' : 'text-gray-400 group-hover:text-gray-500'}
-                `} /> */}
                 {tab.name}
               </button>
             ))}
@@ -457,7 +418,6 @@ export default function EditStorePage() {
         onSubmit={handleSubmit}
         className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
       >
-        {/* Error Message */}
         {errors.form && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center gap-2">
             <ExclamationTriangleIcon className="w-5 h-5 flex-shrink-0" />
@@ -465,9 +425,9 @@ export default function EditStorePage() {
           </div>
         )}
 
-        {/* Form Sections */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          {/* Basic Information Tab */}
+
+          {/* ── Basic Information Tab ──────────────────────────────────────── */}
           {activeTab === "basic" && (
             <div className="space-y-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -475,6 +435,7 @@ export default function EditStorePage() {
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Store Name */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Store Name *
@@ -494,6 +455,7 @@ export default function EditStorePage() {
                   )}
                 </div>
 
+                {/* Store Code */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Store Code *
@@ -513,6 +475,7 @@ export default function EditStorePage() {
                   )}
                 </div>
 
+                {/* ── FIX 1: Store Type uses handleStoreTypeChange ─────────── */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Store Type
@@ -520,7 +483,7 @@ export default function EditStorePage() {
                   <select
                     name="storeType"
                     value={formData.storeType}
-                    onChange={handleChange}
+                    onChange={handleStoreTypeChange}  
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   >
                     <option value="general">General</option>
@@ -530,6 +493,7 @@ export default function EditStorePage() {
                   </select>
                 </div>
 
+                {/* Total Capacity */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Total Capacity (cubic meters)
@@ -544,6 +508,7 @@ export default function EditStorePage() {
                   />
                 </div>
 
+                {/* Parent Store */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Parent Store
@@ -555,17 +520,21 @@ export default function EditStorePage() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   >
                     <option value="">None</option>
-                    {parentStores.map((store) => (
-                      <option key={store.id} value={store.id}>
-                        {store.name} ({store.code})
+                    {parentStores.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.code})
                       </option>
                     ))}
                   </select>
                 </div>
 
+                {/* ── FIX 2: Manager select — dynamic label + empty state hint ── */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Store Manager
+                    Store Manager{" "}
+                    <span className="text-xs font-normal text-purple-600 ml-1">
+                      ({MANAGER_ROLE_LABEL[formData.storeType] ?? "Store Manager"} role required)
+                    </span>
                   </label>
                   <select
                     name="managerId"
@@ -576,12 +545,20 @@ export default function EditStorePage() {
                     <option value="">Not assigned</option>
                     {potentialManagers.map((user) => (
                       <option key={user.id} value={user.id}>
-                        {user.name}
+                        {user.name} — {user.role.displayName}
                       </option>
                     ))}
                   </select>
+                  {/* Warn admin if nobody with the right role exists */}
+                  {potentialManagers.length === 0 && (
+                    <p className="mt-1 text-xs text-amber-600">
+                      No users with the &quot;{MANAGER_ROLE_LABEL[formData.storeType]}&quot; role
+                      are available. Create one first in Users Management.
+                    </p>
+                  )}
                 </div>
 
+                {/* Notes */}
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Notes
@@ -596,6 +573,7 @@ export default function EditStorePage() {
                   />
                 </div>
 
+                {/* Active toggle */}
                 <div className="col-span-2">
                   <label className="flex items-center gap-2">
                     <input
@@ -605,121 +583,19 @@ export default function EditStorePage() {
                       onChange={handleChange}
                       className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
                     />
-                    <span className="text-sm text-gray-700">
-                      Store is active
-                    </span>
+                    <span className="text-sm text-gray-700">Store is active</span>
                   </label>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Environmental Tab */}
-          {activeTab === "environmental" && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Environmental Conditions
-              </h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Temperature Min (°C)
-                  </label>
-                  <input
-                    type="number"
-                    name="temperatureMin"
-                    value={formData.temperatureMin}
-                    onChange={handleChange}
-                    step="0.1"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Temperature Max (°C)
-                  </label>
-                  <input
-                    type="number"
-                    name="temperatureMax"
-                    value={formData.temperatureMax}
-                    onChange={handleChange}
-                    step="0.1"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Humidity Min (%)
-                  </label>
-                  <input
-                    type="number"
-                    name="humidityMin"
-                    value={formData.humidityMin}
-                    onChange={handleChange}
-                    step="1"
-                    min="0"
-                    max="100"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Humidity Max (%)
-                  </label>
-                  <input
-                    type="number"
-                    name="humidityMax"
-                    value={formData.humidityMax}
-                    onChange={handleChange}
-                    step="1"
-                    min="0"
-                    max="100"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Temperature Sensor ID
-                  </label>
-                  <input
-                    type="text"
-                    name="temperatureSensorId"
-                    value={formData.temperatureSensorId}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="e.g., TMP-001"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Humidity Sensor ID
-                  </label>
-                  <input
-                    type="text"
-                    name="humiditySensorId"
-                    value={formData.humiditySensorId}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="e.g., HUM-001"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Capabilities Tab */}
+          {/* ── Capabilities Tab ───────────────────────────────────────────── */}
           {activeTab === "capabilities" && (
             <div className="space-y-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Store Capabilities
               </h2>
-
               <div className="space-y-4">
                 <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
                   <input
@@ -730,12 +606,9 @@ export default function EditStorePage() {
                     className="mt-1 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
                   />
                   <div>
-                    <span className="font-medium text-gray-900">
-                      Allow Controlled Substances
-                    </span>
+                    <span className="font-medium text-gray-900">Allow Controlled Substances</span>
                     <p className="text-sm text-gray-500 mt-1">
-                      Store can hold Schedule I-V controlled drugs. Requires
-                      special security measures.
+                      Store can hold Schedule I-V controlled drugs. Requires special security measures.
                     </p>
                   </div>
                 </label>
@@ -749,9 +622,7 @@ export default function EditStorePage() {
                     className="mt-1 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
                   />
                   <div>
-                    <span className="font-medium text-gray-900">
-                      Allow Dispatch Operations
-                    </span>
+                    <span className="font-medium text-gray-900">Allow Dispatch Operations</span>
                     <p className="text-sm text-gray-500 mt-1">
                       Store can fulfill orders and dispatch items to customers.
                     </p>
@@ -767,9 +638,7 @@ export default function EditStorePage() {
                     className="mt-1 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
                   />
                   <div>
-                    <span className="font-medium text-gray-900">
-                      Receiving Zone
-                    </span>
+                    <span className="font-medium text-gray-900">Receiving Zone</span>
                     <p className="text-sm text-gray-500 mt-1">
                       Store can receive goods from suppliers and process GRNs.
                     </p>
@@ -779,13 +648,12 @@ export default function EditStorePage() {
             </div>
           )}
 
-          {/* Address Tab */}
+          {/* ── Address Tab ────────────────────────────────────────────────── */}
           {activeTab === "address" && (
             <div className="space-y-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Address Information
               </h2>
-
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -800,85 +668,44 @@ export default function EditStorePage() {
                     placeholder="123 Main Street"
                   />
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      name="address.city"
-                      value={formData.address.city}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      State/Province
-                    </label>
-                    <input
-                      type="text"
-                      name="address.state"
-                      value={formData.address.state}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Country
-                    </label>
-                    <input
-                      type="text"
-                      name="address.country"
-                      value={formData.address.country}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Postal Code
-                    </label>
-                    <input
-                      type="text"
-                      name="address.postalCode"
-                      value={formData.address.postalCode}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    />
-                  </div>
+                  {[
+                    { label: "City", name: "address.city", value: formData.address.city },
+                    { label: "State/Province", name: "address.state", value: formData.address.state },
+                    { label: "Country", name: "address.country", value: formData.address.country },
+                    { label: "Postal Code", name: "address.postalCode", value: formData.address.postalCode },
+                  ].map(({ label, name, value }) => (
+                    <div key={name}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+                      <input
+                        type="text"
+                        name={name}
+                        value={value}
+                        onChange={handleChange}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
           )}
 
-          {/* User Assignment Tab */}
-
+          {/* ── User Assignment Tab ────────────────────────────────────────── */}
           {activeTab === "users" && (
             <div className="space-y-6">
-              {/* Header with Stats */}
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">
                     Store Manager Assignment
                   </h2>
                   <p className="text-sm text-gray-500 mt-1">
-                    Assign store managers to this location. Each manager can
-                    only be assigned to one store.
+                    Assign store managers to this location. Each manager can only be assigned to one store.
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    loadStoreUsers();
-                    setShowUserModal(true);
-                  }}
+                  onClick={() => { loadStoreUsers(); setShowUserModal(true); }}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                 >
                   <UsersIcon className="w-4 h-4" />
@@ -886,7 +713,6 @@ export default function EditStorePage() {
                 </button>
               </div>
 
-              {/* Current Store Manager (if assigned) */}
               {store.managerId && store.manager && (
                 <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-5">
                   <div className="flex items-start gap-4">
@@ -894,17 +720,11 @@ export default function EditStorePage() {
                       <ShieldCheckIcon className="w-6 h-6 text-purple-600" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-purple-600">
-                        Current Store Manager
-                      </p>
+                      <p className="text-sm font-medium text-purple-600">Current Store Manager</p>
                       <div className="mt-2 flex items-center justify-between">
                         <div>
-                          <p className="text-lg font-semibold text-gray-900">
-                            {store.manager.name}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {store.manager.email}
-                          </p>
+                          <p className="text-lg font-semibold text-gray-900">{store.manager.name}</p>
+                          <p className="text-sm text-gray-600">{store.manager.email}</p>
                         </div>
                         <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
                           Primary Manager
@@ -915,18 +735,12 @@ export default function EditStorePage() {
                 </div>
               )}
 
-              {/* Assigned Users Grid */}
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-700">
-                      Assigned Store Managers
-                    </h3>
-                    <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
-                      {users.filter((u) => u.storeId === params.id).length}{" "}
-                      Assigned
-                    </span>
-                  </div>
+                <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                  <h3 className="font-medium text-gray-700">Assigned Store Managers</h3>
+                  <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                    {users.filter((u) => u.storeId === params.id).length} Assigned
+                  </span>
                 </div>
 
                 {usersLoading ? (
@@ -936,66 +750,52 @@ export default function EditStorePage() {
                   </div>
                 ) : users.filter((u) => u.storeId === params.id).length > 0 ? (
                   <div className="divide-y divide-gray-200">
-                    {users
-                      .filter((u) => u.storeId === params.id)
-                      .map((user) => (
-                        <div
-                          key={user.id}
-                          className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-full flex items-center justify-center">
-                              <span className="text-purple-700 font-medium">
-                                {user.name.charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium text-gray-900">
-                                  {user.name}
-                                </p>
-                                {user.id === store.managerId && (
-                                  <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
-                                    Manager
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-500">
-                                {user.email}
-                              </p>
-                              <span className="inline-block mt-1 px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
-                                {user.role.displayName}
-                              </span>
-                            </div>
+                    {users.filter((u) => u.storeId === params.id).map((user) => (
+                      <div key={user.id} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-full flex items-center justify-center">
+                            <span className="text-purple-700 font-medium">{user.name.charAt(0).toUpperCase()}</span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => removeUserFromStore(user.id)}
-                            disabled={updatingUser}
-                            className="opacity-0 group-hover:opacity-100 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50"
-                            title="Remove from store"
-                          >
-                            <TrashIcon className="w-5 h-5" />
-                          </button>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-gray-900">{user.name}</p>
+                              {user.id === store.managerId && (
+                                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                  Manager
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-500">{user.email}</p>
+                            <span className="inline-block mt-1 px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
+                              {user.role.displayName}
+                            </span>
+                          </div>
                         </div>
-                      ))}
+                        <button
+                          type="button"
+                          onClick={() => removeUserFromStore(user.id)}
+                          disabled={updatingUser}
+                          className="opacity-0 group-hover:opacity-100 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50"
+                          title="Remove from store"
+                        >
+                          <TrashIcon className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="p-12 text-center">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <UserGroupIcon className="w-8 h-8 text-gray-400" />
                     </div>
-                    <p className="text-gray-600 font-medium">
-                      No managers assigned yet
-                    </p>
+                    <p className="text-gray-600 font-medium">No managers assigned yet</p>
                     <p className="text-sm text-gray-500 mt-1">
-                      Click &#34;Manage Assignments&#34; to add store managers
+                      Click &quot;Manage Assignments&quot; to add store managers
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* Quick Stats */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-gray-200">
                   <p className="text-sm text-gray-500">Total Store Managers</p>
@@ -1014,30 +814,21 @@ export default function EditStorePage() {
                   <p className="text-2xl font-bold text-gray-900 mt-1">
                     {Math.round(
                       (users.filter((u) => u.storeId === params.id).length /
-                        Math.max(users.length, 1)) *
-                        100,
-                    )}
-                    %
+                        Math.max(users.length, 1)) * 100,
+                    )}%
                   </p>
                 </div>
               </div>
 
-              {/* Information Box */}
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
                 <div className="flex gap-3">
-                  <div className="flex-shrink-0">
-                    <ShieldCheckIcon className="w-5 h-5 text-blue-600" />
-                  </div>
+                  <ShieldCheckIcon className="w-5 h-5 text-blue-600 flex-shrink-0" />
                   <div>
-                    <h4 className="text-sm font-medium text-blue-800">
-                      About Store Manager Assignment
-                    </h4>
+                    <h4 className="text-sm font-medium text-blue-800">About Store Manager Assignment</h4>
                     <p className="text-sm text-blue-700 mt-1">
-                      Store managers have full access to this store&#39;s inventory,
-                      can process orders, and manage daily operations. Each
-                      manager can only be assigned to one store at a time.
-                      Assigning a manager to a new store will automatically
-                      remove them from their previous store.
+                      Store managers have full access to this store&#39;s inventory, can process orders, and
+                      manage daily operations. Each manager can only be assigned to one store at a time.
+                      Assigning a manager to a new store will automatically remove them from their previous store.
                     </p>
                   </div>
                 </div>
@@ -1078,13 +869,10 @@ export default function EditStorePage() {
       {showUserModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
-            {/* Modal Header */}
             <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-purple-600 to-indigo-600">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-white">
-                    Manage Store Assignments
-                  </h3>
+                  <h3 className="text-lg font-semibold text-white">Manage Store Assignments</h3>
                   <p className="text-sm text-purple-100 mt-1">
                     Assign or remove store managers from {store.name}
                   </p>
@@ -1098,9 +886,7 @@ export default function EditStorePage() {
               </div>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              {/* Search/Filter Bar */}
               <div className="mb-6">
                 <div className="relative">
                   <input
@@ -1115,12 +901,10 @@ export default function EditStorePage() {
               </div>
 
               <div className="grid grid-cols-2 gap-6">
-                {/* Assigned Managers Column */}
+                {/* Assigned column */}
                 <div className="border rounded-lg overflow-hidden">
                   <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
-                    <h4 className="font-medium text-gray-700">
-                      Assigned to this Store
-                    </h4>
+                    <h4 className="font-medium text-gray-700">Assigned to this Store</h4>
                     <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
                       {assignedUsers.length}
                     </span>
@@ -1128,24 +912,15 @@ export default function EditStorePage() {
                   <div className="divide-y max-h-[400px] overflow-y-auto">
                     {assignedUsers.length > 0 ? (
                       assignedUsers.map((user) => (
-                        <div
-                          key={user.id}
-                          className="p-4 hover:bg-purple-50 transition-colors"
-                        >
+                        <div key={user.id} className="p-4 hover:bg-purple-50 transition-colors">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                                <span className="text-purple-700 font-medium">
-                                  {user.name.charAt(0).toUpperCase()}
-                                </span>
+                                <span className="text-purple-700 font-medium">{user.name.charAt(0).toUpperCase()}</span>
                               </div>
                               <div>
-                                <p className="font-medium text-gray-900">
-                                  {user.name}
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                  {user.email}
-                                </p>
+                                <p className="font-medium text-gray-900">{user.name}</p>
+                                <p className="text-sm text-gray-500">{user.email}</p>
                               </div>
                             </div>
                             <button
@@ -1167,12 +942,10 @@ export default function EditStorePage() {
                   </div>
                 </div>
 
-                {/* Available Managers Column */}
+                {/* Available column */}
                 <div className="border rounded-lg overflow-hidden">
                   <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
-                    <h4 className="font-medium text-gray-700">
-                      Available Managers
-                    </h4>
+                    <h4 className="font-medium text-gray-700">Available Managers</h4>
                     <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
                       {availableUsers.length}
                     </span>
@@ -1180,24 +953,15 @@ export default function EditStorePage() {
                   <div className="divide-y max-h-[400px] overflow-y-auto">
                     {availableUsers.length > 0 ? (
                       availableUsers.map((user) => (
-                        <div
-                          key={user.id}
-                          className="p-4 hover:bg-gray-50 transition-colors"
-                        >
+                        <div key={user.id} className="p-4 hover:bg-gray-50 transition-colors">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                                <span className="text-gray-600 font-medium">
-                                  {user.name.charAt(0).toUpperCase()}
-                                </span>
+                                <span className="text-gray-600 font-medium">{user.name.charAt(0).toUpperCase()}</span>
                               </div>
                               <div>
-                                <p className="font-medium text-gray-900">
-                                  {user.name}
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                  {user.email}
-                                </p>
+                                <p className="font-medium text-gray-900">{user.name}</p>
+                                <p className="text-sm text-gray-500">{user.email}</p>
                               </div>
                             </div>
                             <button
@@ -1221,7 +985,6 @@ export default function EditStorePage() {
                 </div>
               </div>
 
-              {/* Quick Actions */}
               <div className="mt-6 flex justify-end gap-3 pt-4 border-t">
                 <button
                   onClick={() => setShowUserModal(false)}

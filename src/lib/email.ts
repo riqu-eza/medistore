@@ -1,405 +1,333 @@
 // ============================================================================
-// EMAIL SERVICE - Complete Implementation
+// EMAIL SERVICE - Production (Gmail App Password)
 // File: src/lib/email.ts
 // ============================================================================
 
-import sgMail from '@sendgrid/mail'
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
-import nodemailer from 'nodemailer'
-import crypto from 'crypto'
+import nodemailer, { Transporter, SendMailOptions } from "nodemailer";
 
-// Initialize SendGrid
-if (process.env.EMAIL_PROVIDER === 'sendgrid') {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY || '')
-}
+// ============================================================================
+// HOW TO GET YOUR CREDENTIALS
+//
+//   GMAIL_USER        → your Gmail address e.g. vickymuthunga@gmail.com
+//   GMAIL_APP_PASSWORD → 16-char App Password (NOT your Gmail login password)
+//
+//   Steps to create an App Password:
+//     1. myaccount.google.com → Security
+//     2. Turn on 2-Step Verification (mandatory)
+//     3. Search "App passwords" in the search bar
+//     4. Choose app: Mail, device: Other → give it a name → Generate
+//     5. Copy the 16-char code into your .env (spaces are fine)
+//
+//   .env example:
+//     GMAIL_USER=vickymuthunga@gmail.com
+//     GMAIL_APP_PASSWORD=phao chdg beqx cgla
+//     EMAIL_FROM=PharmaTrace <vickymuthunga@gmail.com>
+//     NEXTAUTH_URL=https://yourdomain.com
+// ============================================================================
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-export interface EmailOptions {
-  to: string | string[]
-  subject: string
-  html: string
-  text?: string
-  from?: string
-  cc?: string[]
-  bcc?: string[]
-  attachments?: Array<{
-    content: string
-    filename: string
-    type?: string
-  }>
+export interface SendEmailOptions {
+  cc?: string | string[];
+  bcc?: string | string[];
+  replyTo?: string;
+  headers?: Record<string, string>;
+  bookingId?: string;
+  inReplyTo?: string;
+  attachments?: SendMailOptions["attachments"];
+}
+
+export interface SendResult {
+  messageId: string;
 }
 
 // ============================================================================
-// EMAIL TEMPLATES
+// SINGLETON TRANSPORTER
+// Created once, reused for every email — no new connection per send.
 // ============================================================================
+
+let _transporter: Transporter | null = null;
+
+function getTransporter(): Transporter {
+  if (_transporter) return _transporter;
+
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+
+  if (!user || !pass) {
+    throw new Error(
+      "[Email] Missing credentials. Set GMAIL_USER and GMAIL_APP_PASSWORD in your .env file."
+    );
+  }
+
+  _transporter = nodemailer.createTransport({
+    service: "Gmail",
+    auth: { user, pass },
+  });
+
+  // Verify once at startup — warns but doesn't crash the app
+  _transporter.verify((err) => {
+    if (err) console.error("[Email] Gmail connection error:", err.message);
+    else console.log("[Email] Gmail transporter ready ✓");
+  });
+
+  return _transporter;
+}
+
+// ============================================================================
+// RETRY WRAPPER  (3 attempts, 1s / 2s / 3s back-off)
+// ============================================================================
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries) {
+        const delay = attempt * 1000;
+        console.warn(`[Email] Attempt ${attempt} failed — retrying in ${delay}ms`);
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
+// ============================================================================
+// PLAIN-TEXT FALLBACK
+// ============================================================================
+
+function toPlainText(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+// ============================================================================
+// CORE SEND FUNCTION
+// ============================================================================
+
+export async function sendEmail(
+  to: string | string[],
+  subject: string,
+  html: string,
+  options: SendEmailOptions = {}
+): Promise<SendResult> {
+  const transporter = getTransporter();
+  const from = process.env.EMAIL_FROM || process.env.GMAIL_USER!;
+
+  const mailOptions: SendMailOptions = {
+    from,
+    to,
+    subject,
+    html,
+    text: toPlainText(html),
+    replyTo: options.replyTo || from,
+    cc: options.cc,
+    bcc: options.bcc,
+    attachments: options.attachments,
+    headers: {
+      ...(options.headers || {}),
+      ...(options.bookingId ? { "X-Booking-ID": options.bookingId } : {}),
+      ...(options.inReplyTo
+        ? { "In-Reply-To": options.inReplyTo, References: options.inReplyTo }
+        : {}),
+    },
+  };
+
+  try {
+    const info = await withRetry(() => transporter.sendMail(mailOptions));
+    const dest = Array.isArray(to) ? to.join(", ") : to;
+    console.log(`[Email] ✓ Sent to ${dest} | messageId: ${info.messageId}`);
+    return { messageId: info.messageId };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[Email] ✗ Delivery failed:", msg);
+    throw new Error(`Email delivery failed: ${msg}`);
+  }
+}
+
+// ============================================================================
+// EMAIL TEMPLATES (inline — no extra file needed)
+// ============================================================================
+
+const year = new Date().getFullYear();
+
+const base = (accentColor: string, headerText: string, body: string) => `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  body{margin:0;padding:0;background:#f0f2f5;font-family:Arial,sans-serif;color:#1a1a2e}
+  .wrap{max-width:580px;margin:32px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.09)}
+  .hd{background:${accentColor};padding:28px 36px;text-align:center;color:#fff}
+  .hd small{display:block;font-size:11px;letter-spacing:2px;text-transform:uppercase;opacity:.75;margin-bottom:6px}
+  .hd h1{margin:0;font-size:20px;font-weight:700}
+  .bd{padding:36px}
+  .bd h2{margin:0 0 12px;font-size:18px}
+  .bd p{color:#4a5568;font-size:14px;line-height:1.7;margin:0 0 14px}
+  .btn{display:inline-block;padding:13px 30px;background:${accentColor};color:#fff;text-decoration:none;border-radius:7px;font-weight:600;font-size:14px;margin:4px 0 20px}
+  .url{background:#f7f9fc;border:1px solid #e2e8f0;border-radius:5px;padding:10px 14px;font-size:12px;color:#718096;word-break:break-all;margin-bottom:20px}
+  .info{background:#f7f9fc;border-left:4px solid ${accentColor};border-radius:0 6px 6px 0;padding:14px 18px;margin:16px 0;font-size:13px;color:#2d3748}
+  .warn{background:#fef2f2;border-left:4px solid #dc2626;border-radius:0 6px 6px 0;padding:14px 18px;margin:16px 0;font-size:13px;color:#991b1b}
+  .warn a{color:#dc2626}
+  ul{padding-left:20px;color:#4a5568;font-size:14px;line-height:2}
+  hr{border:none;border-top:1px solid #e8ecf0;margin:24px 0}
+  .ft{background:#f7f9fc;padding:20px 36px;text-align:center;font-size:11px;color:#a0aec0;line-height:1.8}
+  .ft a{color:#718096;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd"><small>PharmaTrace</small><h1>${headerText}</h1></div>
+  <div class="bd">${body}</div>
+  <div class="ft">
+    © ${year} PharmaTrace · Pharmaceutical Traceability System<br/>
+    <a href="mailto:support@pharmatrace.com">support@pharmatrace.com</a>
+  </div>
+</div>
+</body>
+</html>`;
 
 export const EmailTemplates = {
-  welcome: (name: string, verifyUrl: string) => `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #2563eb; color: white; padding: 20px; text-align: center; }
-        .content { padding: 30px 20px; background: #f9fafb; }
-        .button { display: inline-block; padding: 12px 30px; background: #2563eb; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-        .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Welcome to PharmaTrace</h1>
-        </div>
-        <div class="content">
-          <h2>Hello ${name}!</h2>
-          <p>Welcome to PharmaTrace - Your Pharmaceutical Traceability System.</p>
-          <p>To get started, please verify your email address:</p>
-          <p style="text-align: center;">
-            <a href="${verifyUrl}" class="button">Verify Email Address</a>
-          </p>
-          <p>Or copy and paste this link:</p>
-          <p style="word-break: break-all; color: #2563eb;">${verifyUrl}</p>
-          <p><strong>This link will expire in 24 hours.</strong></p>
-        </div>
-        <div class="footer">
-          <p>© ${new Date().getFullYear()} PharmaTrace. All rights reserved.</p>
-          <p>If you didn't create this account, please ignore this email.</p>
-        </div>
+  welcome: (name: string, verifyUrl: string) =>
+    base("#2563eb", "Welcome aboard 🎉", `
+      <h2>Hello, ${name}!</h2>
+      <p>Your PharmaTrace account is ready. Please verify your email to activate it.</p>
+      <p style="text-align:center"><a href="${verifyUrl}" class="btn">Verify Email Address</a></p>
+      <p style="font-size:13px;color:#718096;margin-bottom:6px">Or paste this link in your browser:</p>
+      <div class="url">${verifyUrl}</div>
+      <div class="info">⏱ This link expires in <strong>24 hours</strong>.</div>
+    `),
+
+  passwordReset: (name: string, resetUrl: string) =>
+    base("#dc2626", "Password Reset", `
+      <h2>Hi ${name},</h2>
+      <p>We received a request to reset your password. Click below to choose a new one.</p>
+      <p style="text-align:center"><a href="${resetUrl}" class="btn">Reset My Password</a></p>
+      <p style="font-size:13px;color:#718096;margin-bottom:6px">Or paste this link in your browser:</p>
+      <div class="url">${resetUrl}</div>
+      <div class="warn">
+        <strong>⚠️ Security reminders</strong>
+        <ul>
+          <li>Link expires in <strong>1 hour</strong></li>
+          <li>Never share this link with anyone</li>
+          <li>We will never ask for your password</li>
+        </ul>
       </div>
-    </body>
-    </html>
-  `,
+      <p>Didn't request this? You can safely ignore this email.</p>
+    `),
 
-  passwordReset: (name: string, resetUrl: string) => `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #dc2626; color: white; padding: 20px; text-align: center; }
-        .content { padding: 30px 20px; background: #f9fafb; }
-        .button { display: inline-block; padding: 12px 30px; background: #dc2626; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-        .warning { background: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; }
-        .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Password Reset Request</h1>
-        </div>
-        <div class="content">
-          <h2>Hello ${name},</h2>
-          <p>You requested to reset your password for your PharmaTrace account.</p>
-          <p style="text-align: center;">
-            <a href="${resetUrl}" class="button">Reset Password</a>
-          </p>
-          <p>Or copy and paste this link:</p>
-          <p style="word-break: break-all; color: #dc2626;">${resetUrl}</p>
-          <div class="warning">
-            <strong>⚠️ Security Notice:</strong>
-            <ul>
-              <li>This link will expire in 1 hour</li>
-              <li>Never share this link with anyone</li>
-              <li>PharmaTrace will never ask for your password</li>
-            </ul>
-          </div>
-          <p>If you didn't request this, please ignore this email or contact support if you're concerned.</p>
-        </div>
-        <div class="footer">
-          <p>© ${new Date().getFullYear()} PharmaTrace. All rights reserved.</p>
-        </div>
+  passwordChanged: (name: string) =>
+    base("#059669", "✓ Password Updated", `
+      <h2>Hi ${name},</h2>
+      <p>Your password was changed successfully.</p>
+      <div class="info">🕐 <strong>When:</strong> ${new Date().toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" })}</div>
+      <div class="warn">
+        <strong>⚠️ Didn't make this change?</strong>
+        <p style="margin-top:8px">Contact us immediately at <a href="mailto:support@pharmatrace.com">support@pharmatrace.com</a></p>
       </div>
-    </body>
-    </html>
-  `,
+    `),
 
-  passwordChanged: (name: string) => `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #059669; color: white; padding: 20px; text-align: center; }
-        .content { padding: 30px 20px; background: #f9fafb; }
-        .warning { background: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; }
-        .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>✓ Password Changed Successfully</h1>
-        </div>
-        <div class="content">
-          <h2>Hello ${name},</h2>
-          <p>Your password has been changed successfully.</p>
-          <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
-          <div class="warning">
-            <strong>⚠️ Didn't change your password?</strong>
-            <p>If you didn't make this change, please contact support immediately at support@pharmatrace.com</p>
-          </div>
-        </div>
-        <div class="footer">
-          <p>© ${new Date().getFullYear()} PharmaTrace. All rights reserved.</p>
-        </div>
+  accountLocked: (name: string, failedAttempts = 5) =>
+    base("#7c3aed", "🔒 Account Locked", `
+      <h2>Hi ${name},</h2>
+      <div class="info">Your account was locked after <strong>${failedAttempts} failed login attempts</strong>.</div>
+      <p>As a security measure, access has been temporarily restricted.</p>
+      <hr/>
+      <p><strong>What you can do:</strong></p>
+      <ul>
+        <li>Wait <strong>30 minutes</strong> — it unlocks automatically</li>
+        <li>Ask your administrator to unlock it immediately</li>
+        <li>Use password reset if you've forgotten your credentials</li>
+      </ul>
+      <hr/>
+      <p style="font-size:13px;color:#718096">Didn't attempt to log in? Report this at <a href="mailto:support@pharmatrace.com" style="color:#7c3aed">support@pharmatrace.com</a></p>
+    `),
+
+  mfaEnabled: (name: string) =>
+    base("#0891b2", "🔐 2FA Enabled", `
+      <h2>Hi ${name},</h2>
+      <div class="info">✓ Two-factor authentication is now active on your account.</div>
+      <p>You'll need your password <em>and</em> a code from your authenticator app each time you sign in.</p>
+      <hr/>
+      <ul>
+        <li>Store your backup codes somewhere safe and offline</li>
+        <li>Never share one-time codes with anyone</li>
+        <li>Lost your authenticator? Contact support before you're locked out</li>
+      </ul>
+    `),
+
+  userCreated: (adminName: string, newUser: { name: string; email: string; role: string }) =>
+    base("#2563eb", "New User Created", `
+      <h2>Hi ${adminName},</h2>
+      <p>A new user account has been created successfully.</p>
+      <div class="info">
+        👤 <strong>Name:</strong> ${newUser.name}<br/>
+        📧 <strong>Email:</strong> ${newUser.email}<br/>
+        🏷 <strong>Role:</strong> ${newUser.role}
       </div>
-    </body>
-    </html>
-  `,
+      <p style="font-size:13px;color:#718096">They'll receive a welcome email with instructions to verify their address.</p>
+    `),
+};
 
-  accountLocked: (name: string) => `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #dc2626; color: white; padding: 20px; text-align: center; }
-        .content { padding: 30px 20px; background: #f9fafb; }
-        .alert { background: #fef2f2; border: 2px solid #dc2626; padding: 20px; margin: 20px 0; border-radius: 5px; }
-        .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>🔒 Account Locked</h1>
-        </div>
-        <div class="content">
-          <h2>Hello ${name},</h2>
-          <div class="alert">
-            <strong>⚠️ Your account has been locked</strong>
-            <p>Your account has been temporarily locked due to multiple failed login attempts.</p>
-          </div>
-          <h3>What happened?</h3>
-          <p>We detected 5 or more failed login attempts on your account. As a security measure, we've temporarily locked your account.</p>
-          <h3>What should you do?</h3>
-          <ul>
-            <li>Wait 30 minutes for automatic unlock</li>
-            <li>Or contact your administrator to unlock immediately</li>
-            <li>If you didn't attempt to login, report this immediately</li>
-          </ul>
-          <p><strong>Need help?</strong> Contact: support@pharmatrace.com</p>
-        </div>
-        <div class="footer">
-          <p>© ${new Date().getFullYear()} PharmaTrace. All rights reserved.</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `,
+// ============================================================================
+// NAMED HELPERS  (call these from services — never call sendEmail() directly)
+// ============================================================================
 
-  mfaEnabled: (name: string) => `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #059669; color: white; padding: 20px; text-align: center; }
-        .content { padding: 30px 20px; background: #f9fafb; }
-        .success { background: #f0fdf4; border-left: 4px solid #059669; padding: 15px; margin: 20px 0; }
-        .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>🔐 Two-Factor Authentication Enabled</h1>
-        </div>
-        <div class="content">
-          <h2>Hello ${name},</h2>
-          <div class="success">
-            <strong>✓ Success!</strong>
-            <p>Two-factor authentication has been enabled on your account.</p>
-          </div>
-          <p>Your account is now more secure. You'll need both your password and a verification code to sign in.</p>
-          <h3>Important:</h3>
-          <ul>
-            <li>Keep your backup codes in a safe place</li>
-            <li>Don't share your authentication codes</li>
-            <li>Contact support if you lose access to your authenticator</li>
-          </ul>
-        </div>
-        <div class="footer">
-          <p>© ${new Date().getFullYear()} PharmaTrace. All rights reserved.</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `,
+export async function sendWelcomeEmail(
+  email: string,
+  name: string,
+  verifyToken: string
+): Promise<SendResult> {
+  const url = `${process.env.NEXTAUTH_URL}/auth/verify-email?token=${verifyToken}`;
+  return sendEmail(email, "Welcome to PharmaTrace — Verify Your Email", EmailTemplates.welcome(name, url));
 }
 
-// ============================================================================
-// SEND EMAIL FUNCTION
-// ============================================================================
-
-export async function sendEmail(options: EmailOptions): Promise<boolean> {
-  try {
-    const provider = process.env.EMAIL_PROVIDER || 'sendgrid'
-
-    if (provider === 'sendgrid') {
-      return await sendViaSendGrid(options)
-    } else if (provider === 'ses') {
-      return await sendViaSES(options)
-    } else if (provider === 'smtp') {
-      return await sendViaSMTP(options)
-    }
-
-    throw new Error(`Unsupported email provider: ${provider}`)
-  } catch (error) {
-    console.error('Email send error:', error)
-    throw error
-  }
+export async function sendPasswordResetEmail(
+  email: string,
+  name: string,
+  resetToken: string
+): Promise<SendResult> {
+  const url = `${process.env.NEXTAUTH_URL}/auth/reset-password?token=${resetToken}`;
+  return sendEmail(email, "Reset Your Password — PharmaTrace", EmailTemplates.passwordReset(name, url));
 }
 
-// ============================================================================
-// SENDGRID IMPLEMENTATION
-// ============================================================================
-
-async function sendViaSendGrid(options: EmailOptions): Promise<boolean> {
-  const msg = {
-    to: options.to,
-    from: options.from || process.env.SENDGRID_FROM_EMAIL || 'noreply@pharmatrace.com',
-    subject: options.subject,
-    html: options.html,
-    text: options.text,
-    cc: options.cc,
-    bcc: options.bcc,
-    attachments: options.attachments,
-  }
-
-  await sgMail.send(msg)
-  return true
+export async function sendPasswordChangedEmail(
+  email: string,
+  name: string
+): Promise<SendResult> {
+  return sendEmail(email, "Your Password Was Changed — PharmaTrace", EmailTemplates.passwordChanged(name));
 }
 
-// ============================================================================
-// AWS SES IMPLEMENTATION
-// ============================================================================
-
-async function sendViaSES(options: EmailOptions): Promise<boolean> {
-  // Implementation for AWS SES
-  // npm install @aws-sdk/client-ses
-
-  const client = new SESClient({
-    region: process.env.AWS_REGION || 'us-east-1',
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-    },
-  })
-
-  const command = new SendEmailCommand({
-    Source: options.from || process.env.AWS_SES_FROM_EMAIL,
-    Destination: {
-      ToAddresses: Array.isArray(options.to) ? options.to : [options.to],
-      CcAddresses: options.cc,
-      BccAddresses: options.bcc,
-    },
-    Message: {
-      Subject: {
-        Data: options.subject,
-      },
-      Body: {
-        Html: {
-          Data: options.html,
-        },
-        Text: options.text ? {
-          Data: options.text,
-        } : undefined,
-      },
-    },
-  })
-
-  await client.send(command)
-  return true
+export async function sendAccountLockedEmail(
+  email: string,
+  name: string,
+  failedAttempts = 5
+): Promise<SendResult> {
+  return sendEmail(email, "Account Locked — PharmaTrace", EmailTemplates.accountLocked(name, failedAttempts));
 }
 
-// ============================================================================
-// SMTP IMPLEMENTATION
-// ============================================================================
-
-async function sendViaSMTP(options: EmailOptions): Promise<boolean> {
-  // Implementation for generic SMTP
-  // npm install nodemailer
-
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASSWORD,
-    },
-  })
-
-  await transporter.sendMail({
-    from: options.from || process.env.SMTP_FROM_EMAIL,
-    to: options.to,
-    subject: options.subject,
-    html: options.html,
-    text: options.text,
-    cc: options.cc,
-    bcc: options.bcc,
-    attachments: options.attachments,
-  })
-
-  return true
+export async function sendMfaEnabledEmail(email: string, name: string): Promise<SendResult> {
+  return sendEmail(email, "Two-Factor Authentication Enabled — PharmaTrace", EmailTemplates.mfaEnabled(name));
 }
 
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-export async function sendWelcomeEmail(userId: string, email: string, name: string) {
-  const verifyToken = crypto.randomBytes(32).toString('hex')
-  const verifyUrl = `${process.env.NEXTAUTH_URL}/auth/verify-email?token=${verifyToken}`
-
-  await sendEmail({
-    to: email,
-    subject: 'Welcome to PharmaTrace',
-    html: EmailTemplates.welcome(name, verifyUrl),
-  })
-}
-
-export async function sendPasswordResetEmail(email: string, name: string, resetToken: string) {
-  const resetUrl = `${process.env.NEXTAUTH_URL}/auth/reset-password?token=${resetToken}`
-
-  await sendEmail({
-    to: email,
-    subject: 'Reset Your Password - PharmaTrace',
-    html: EmailTemplates.passwordReset(name, resetUrl),
-  })
-}
-
-export async function sendPasswordChangedEmail(email: string, name: string) {
-  await sendEmail({
-    to: email,
-    subject: 'Password Changed - PharmaTrace',
-    html: EmailTemplates.passwordChanged(name),
-  })
-}
-
-export async function sendAccountLockedEmail(email: string, name: string) {
-  await sendEmail({
-    to: email,
-    subject: 'Account Locked - PharmaTrace',
-    html: EmailTemplates.accountLocked(name),
-  })
-}
-
-export async function sendMfaEnabledEmail(email: string, name: string) {
-  await sendEmail({
-    to: email,
-    subject: 'Two-Factor Authentication Enabled - PharmaTrace',
-    html: EmailTemplates.mfaEnabled(name),
-  })
+export async function sendUserCreatedEmail(
+  adminEmail: string,
+  adminName: string,
+  newUser: { name: string; email: string; role: string }
+): Promise<SendResult> {
+  return sendEmail(
+    adminEmail,
+    `New User Created: ${newUser.name} — PharmaTrace`,
+    EmailTemplates.userCreated(adminName, newUser)
+  );
 }

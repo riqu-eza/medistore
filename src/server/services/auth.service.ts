@@ -6,7 +6,13 @@
 import { hash, compare } from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { validatePassword } from '@/lib/crypto'
-import { sendEmail, sendPasswordChangedEmail } from '@/lib/email'
+import {
+  sendPasswordChangedEmail,
+  sendPasswordResetEmail,
+  sendWelcomeEmail,
+  sendAccountLockedEmail,
+  sendUserCreatedEmail,
+} from '@/lib/email'
 import type { User, Role } from '@prisma/client'
 
 // ============================================================================
@@ -20,7 +26,7 @@ export interface RegisterUserInput {
   phone?: string
   roleId: number
   storeId?: string
-  createdBy: string  // Required - admin ID
+  createdBy: string // Required - admin ID
 }
 
 export interface UserWithRole extends User {
@@ -65,7 +71,7 @@ export class AuthService {
     // 3. Verify createdBy user exists and is admin
     const admin = await prisma.user.findUnique({
       where: { id: input.createdBy },
-      include: { role: true }
+      include: { role: true },
     })
 
     if (!admin) {
@@ -102,7 +108,7 @@ export class AuthService {
     // 6. Create audit log
     await prisma.auditLog.create({
       data: {
-        userId: input.createdBy, // Admin who created the user
+        userId: input.createdBy,
         action: 'user_created',
         entityType: 'User',
         entityId: user.id,
@@ -115,6 +121,20 @@ export class AuthService {
       },
     })
 
+    // 7. Send welcome email to the new user (non-fatal)
+    sendWelcomeEmail(user.email, user.name).catch((err) =>
+      console.error('[AuthService] Welcome email failed:', err.message)
+    )
+
+    // 8. Notify the admin that created the user (non-fatal)
+    sendUserCreatedEmail(admin.email, admin.name, {
+      name: user.name,
+      email: user.email,
+      role: user.role.name,
+    }).catch((err) =>
+      console.error('[AuthService] Admin notification email failed:', err.message)
+    )
+
     return user
   }
 
@@ -125,52 +145,43 @@ export class AuthService {
     const { userId, currentPassword, newPassword } = input
 
     // 1. Get user
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    })
-
-    if (!user) {
-      throw new Error('User not found')
-    }
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) throw new Error('User not found')
 
     // 2. Verify current password
     const isValid = await compare(currentPassword, user.passwordHash)
-    if (!isValid) {
-      throw new Error('Current password is incorrect')
-    }
+    if (!isValid) throw new Error('Current password is incorrect')
 
-    // 3. Validate new password
+    // 3. Validate new password strength
     const passwordValidation = validatePassword(newPassword)
     if (!passwordValidation.isValid) {
       throw new Error(`Password validation failed: ${passwordValidation.errors.join(', ')}`)
     }
 
-    // 4. Check if new password is same as current
+    // 4. Check new password differs from current
     const isSamePassword = await compare(newPassword, user.passwordHash)
     if (isSamePassword) {
       throw new Error('New password must be different from current password')
     }
 
-    // 5. Check password history (prevent reuse)
+    // 5. Check password history (prevent reuse of last 5)
     if (user.passwordHistory) {
       const history = user.passwordHistory as string[]
       for (const oldHash of history) {
         const isOldPassword = await compare(newPassword, oldHash)
-        if (isOldPassword) {
-          throw new Error('Cannot reuse recent passwords')
-        }
+        if (isOldPassword) throw new Error('Cannot reuse recent passwords')
       }
     }
 
     // 6. Hash new password
     const newPasswordHash = await hash(newPassword, 12)
 
-    // 7. Update password history
-    const passwordHistory = (user.passwordHistory as string[]) || []
+    // 7. Update password history (keep last 5)
+    const passwordHistory = ((user.passwordHistory as string[]) || [])
     passwordHistory.unshift(user.passwordHash)
-    const limitedHistory = passwordHistory.slice(0, 5) // Keep last 5
+    const limitedHistory = passwordHistory.slice(0, 5)
 
-    // 8. Update user
+    // 8. Persist changes
     await prisma.user.update({
       where: { id: userId },
       data: {
@@ -178,11 +189,11 @@ export class AuthService {
         passwordChangedAt: new Date(),
         lastPasswordChange: new Date(),
         passwordHistory: limitedHistory,
-        failedAttempts: 0, // Reset on successful change
+        failedAttempts: 0,
       },
     })
 
-    // 9. Create audit log
+    // 9. Audit log
     await prisma.auditLog.create({
       data: {
         userId,
@@ -192,8 +203,10 @@ export class AuthService {
       },
     })
 
-    // 10. Send notification email
-    await this.sendPasswordChangedEmail(userId)
+    // 10. Notification email (non-fatal)
+    sendPasswordChangedEmail(user.email, user.name).catch((err) =>
+      console.error('[AuthService] Password-changed email failed:', err.message)
+    )
   }
 
   /**
@@ -204,43 +217,21 @@ export class AuthService {
       where: { email: email.toLowerCase() },
     })
 
-    // Don't reveal if user exists
-    if (!user) {
-      return
-    }
+    // Don't reveal whether the user exists
+    if (!user) return
 
-    // Generate reset token
-    const crypto = await import('crypto')
-    const resetToken = crypto.randomBytes(32).toString('hex')
-    const resetTokenExpiry = new Date()
-    resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 1) // 1 hour
+    // Generate a secure token (1-hour expiry)
+    const resetToken = (await import('crypto')).randomBytes(32).toString('hex')
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000)
 
-    // Save token
     await prisma.user.update({
       where: { id: user.id },
-      data: {
-        resetToken,
-        resetTokenExpiry,
-      },
+      data: { resetToken, resetTokenExpiry },
     })
 
-    // Send reset email
-    const resetUrl = `${process.env.NEXTAUTH_URL}/auth/reset-password?token=${resetToken}`
+    // Send via the typed helper (URL is built inside the helper)
+    await sendPasswordResetEmail(user.email, user.name, resetToken)
 
-    await sendEmail({
-      to: user.email,
-      subject: 'Reset Your Password - PharmaTrace',
-      html: `
-        <h1>Reset Your Password</h1>
-        <p>Hi ${user.name},</p>
-        <p>You requested to reset your password. Click the link below to proceed:</p>
-        <p><a href="${resetUrl}">${resetUrl}</a></p>
-        <p>This link will expire in 1 hour.</p>
-        <p>If you didn't request this, please ignore this email.</p>
-      `,
-    })
-
-    // Create audit log
     await prisma.auditLog.create({
       data: {
         userId: user.id,
@@ -257,35 +248,26 @@ export class AuthService {
   static async resetPassword(input: ResetPasswordInput): Promise<void> {
     const { token, newPassword } = input
 
-    // Find user by token
     const user = await prisma.user.findFirst({
       where: {
         resetToken: token,
-        resetTokenExpiry: {
-          gt: new Date(), // Token not expired
-        },
+        resetTokenExpiry: { gt: new Date() },
       },
     })
 
-    if (!user) {
-      throw new Error('Invalid or expired reset token')
-    }
+    if (!user) throw new Error('Invalid or expired reset token')
 
-    // Validate new password
     const passwordValidation = validatePassword(newPassword)
     if (!passwordValidation.isValid) {
       throw new Error(`Password validation failed: ${passwordValidation.errors.join(', ')}`)
     }
 
-    // Hash new password
     const newPasswordHash = await hash(newPassword, 12)
 
-    // Update password history
-    const passwordHistory = (user.passwordHistory as string[]) || []
+    const passwordHistory = ((user.passwordHistory as string[]) || [])
     passwordHistory.unshift(user.passwordHash)
     const limitedHistory = passwordHistory.slice(0, 5)
 
-    // Update user
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -296,10 +278,10 @@ export class AuthService {
         resetToken: null,
         resetTokenExpiry: null,
         failedAttempts: 0,
-        isLocked: false, // Unlock if locked
+        isLocked: false,
       },
     })
-    // Create audit log
+
     await prisma.auditLog.create({
       data: {
         userId: user.id,
@@ -309,8 +291,10 @@ export class AuthService {
       },
     })
 
-    // Send confirmation email
-    await this.sendPasswordChangedEmail(user.id)
+    // Confirmation email (non-fatal)
+    sendPasswordChangedEmail(user.email, user.name).catch((err) =>
+      console.error('[AuthService] Password-changed email failed:', err.message)
+    )
   }
 
   /**
@@ -319,14 +303,9 @@ export class AuthService {
   static async unlockAccount(userId: string, unlockedBy: string): Promise<void> {
     await prisma.user.update({
       where: { id: userId },
-      data: {
-        isLocked: false,
-        failedAttempts: 0,
-        lockedAt: null,
-      },
+      data: { isLocked: false, failedAttempts: 0, lockedAt: null },
     })
 
-    // Create audit log
     await prisma.auditLog.create({
       data: {
         userId: unlockedBy,
@@ -338,15 +317,29 @@ export class AuthService {
   }
 
   /**
-   * Send password changed email
+   * Lock account after too many failed attempts
    */
-  private static async sendPasswordChangedEmail(userId: string): Promise<void> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    })
-
+  static async lockAccount(userId: string): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) return
 
-    await sendPasswordChangedEmail(user.email, user.name)
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isLocked: true, lockedAt: new Date() },
+    })
+
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'account_locked',
+        entityType: 'User',
+        entityId: userId,
+      },
+    })
+
+    // Notify the user (non-fatal)
+    sendAccountLockedEmail(user.email, user.name, user.failedAttempts ?? 5).catch((err) =>
+      console.error('[AuthService] Account-locked email failed:', err.message)
+    )
   }
 }

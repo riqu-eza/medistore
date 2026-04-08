@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // ============================================================================
 // REGISTRATION ROUTE - ADMIN ONLY
 // File: src/app/api/auth/register/route.ts
