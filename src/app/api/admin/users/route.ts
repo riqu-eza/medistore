@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(req: NextRequest) {
   const admin = await getCurrentUser()
-  requirePermission(PERMISSIONS.USERS_READ, admin)
+  requirePermission(PERMISSIONS.USERS_READ,)
 
   const { searchParams } = new URL(req.url)
 

@@ -11,8 +11,8 @@ import Link from 'next/link'
 import StoresClient from './stores-client/page'
 
 export default async function StoresPage() {
-  const user = await getCurrentUser()
-  requirePermission(PERMISSIONS.STORES_READ, user)
+  // const user = await getCurrentUser()
+  requirePermission(PERMISSIONS.STORES_READ, )
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -15,7 +15,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  requirePermission(PERMISSIONS.USERS_UPDATE, admin)
+  requirePermission(PERMISSIONS.USERS_UPDATE, )
 
   const body = await req.json()
 

@@ -1,18 +1,18 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { getCurrentUser, requirePermission } from '@/lib/auth/auth'
 import { PERMISSIONS } from '@/lib/auth/permissions'
 import UsersTable from './users-table/page'
 import { 
   UserGroupIcon, 
   PlusIcon,
-  ShieldCheckIcon,
-  BuildingOfficeIcon,
+  
   ArrowPathIcon 
 } from '@heroicons/react/24/outline'
 import Link from 'next/link'
 
 export default async function UsersPage() {
   const user = await getCurrentUser()
-  requirePermission(PERMISSIONS.USERS_READ, user)
+  requirePermission(PERMISSIONS.USERS_READ, )
 
   return (
     <div className="min-h-screen bg-gray-50">
