@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server"
-import { RoleService } from "@/lib/services/role.service"
 import { createRoleSchema } from "@/lib/validators/role.schema"
+import { RoleService } from "@/lib/services/Role.service"
 
 export async function POST(req: Request) {
   try {

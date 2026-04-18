@@ -100,9 +100,10 @@ export default function CreateGRNPage() {
 
   async function loadSuppliers() {
     try {
-      const res = await fetch('/api/suppliers?status=approved')
+      const res = await fetch('/api/admin/suppliers?status=approved')
       const data = await res.json()
-      setSuppliers(data.data || [])
+      setSuppliers(data.suppliers || [])
+      console.log('Loaded suppliers:', data)
     } catch (error) {
       console.error('Failed to load suppliers:', error)
     } finally {
@@ -112,7 +113,7 @@ export default function CreateGRNPage() {
 
   async function loadDrugs() {
     try {
-      const res = await fetch('/api/drugs?status=active')
+      const res = await fetch('/api/admin/drugs?status=active')
       const data = await res.json()
       setDrugs(data.data || [])
     } catch (error) {
@@ -382,7 +383,7 @@ export default function CreateGRNPage() {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <form onSubmit={handleSubmit} className="max-w-7xl mx-auto px-4 sm:px-6 text-black lg:px-8 py-8">
         {/* Error Message */}
         {errors.form && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center gap-2">
@@ -671,7 +672,7 @@ export default function CreateGRNPage() {
                 <div className="text-center py-12 bg-gray-50 rounded-lg">
                   <DocumentArrowUpIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600 font-medium">No items added yet</p>
-                  <p className="text-sm text-gray-500 mt-1">Click "Add Item" to start adding received products</p>
+                  <p className="text-sm text-gray-500 mt-1">Click &quote;Add Item&quote; to start adding received products</p>
                 </div>
               ) : (
                 <div className="space-y-6">

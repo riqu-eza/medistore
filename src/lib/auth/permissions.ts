@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // ============================================================================
 // AUTHORIZATION MIDDLEWARE & UTILITIES
 // File: src/lib/auth/permissions.ts
@@ -128,8 +129,10 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.GRN_CREATE,
     PERMISSIONS.GRN_READ,
     PERMISSIONS.GRN_UPDATE,
+    PERMISSIONS.GRN_APPROVE,
     PERMISSIONS.BATCHES_READ,
     PERMISSIONS.BATCHES_CREATE,
+    PERMISSIONS.INVENTORY_TRANSFER,
   ],
 
   dispatch_officer: [
@@ -240,10 +243,10 @@ export function hasAllPermissions(
 /**
  * Get permissions for a role
  */
-export function getRolePermissions(roleName: string): string[] {
-  return ROLE_PERMISSIONS[roleName as keyof typeof ROLE_PERMISSIONS] || []
-}
 
+export function getRolePermissions(roleName: string): string[] {
+  return [...(ROLE_PERMISSIONS[roleName as keyof typeof ROLE_PERMISSIONS] || [])]
+}
 /**
  * Validate if permissions are valid
  */

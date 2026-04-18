@@ -181,6 +181,7 @@ export async function createGRN(
   input: CreateGRNInput,
   session: Session
 ) {
+  console.log('Creating GRN with input:', input, 'Session:', session)
   // Permission check
   if (!session.user.permissions.includes(PERMISSIONS.GRN_CREATE)) {
     throw new Error('Insufficient permissions to create GRN')
@@ -428,7 +429,7 @@ export async function createGRN(
 export async function getGRNById(id: string, session: Session) {
   // Permission check
  
-  if(!hasPermission(session.user.permissions, PERMISSIONS.GRN_APPROVE)) {
+  if(!hasPermission(session.user.permissions, PERMISSIONS.GRN_READ)) {
     throw new Error('Insufficient permissions to approve GRN')
   }
   const grn = await prisma.goodsReceiptNote.findUnique({
@@ -488,8 +489,8 @@ export async function listGRNs(
 ) {
   // Permission check
   
-  
-   if(!hasPermission(session.user.permissions, PERMISSIONS.GRN_APPROVE)) {
+  console.log('Listing GRNs with filters:',  'Session:', session)
+   if(!hasPermission(session.user.permissions, PERMISSIONS.GRN_READ)) {
     throw new Error('Insufficient permissions to approve GRN')
   }
   const where: Prisma.GoodsReceiptNoteWhereInput = {}

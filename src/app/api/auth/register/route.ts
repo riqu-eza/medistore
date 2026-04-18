@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
           email: user.email,
           name: user.name,
           role: user.role.name,
-          store: user.store?.name,
+          store: user.storeId? user.storeId : null,
         },
         message: 'User created successfully',
       },

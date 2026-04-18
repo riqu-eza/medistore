@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server"
-import { RoleService } from "@/lib/services/role.service"
 import { createRoleSchema } from "@/lib/validators/role.schema"
 import { z } from "zod"
+import { RoleService } from "@/lib/services/Role.service"
 
 export async function GET(req: Request) {
   try {
@@ -20,8 +20,8 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       success: true,
-      data: result.data,
-      meta: result.meta,
+      data: result
+      // meta: result.meta,
     })
   } catch (error: any) {
     return NextResponse.json(

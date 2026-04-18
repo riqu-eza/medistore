@@ -6,52 +6,43 @@
 
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import { prisma } from '@/lib/prisma'
 import ReceivingWorkflow from '@/components/workflow/receiving-workflow'
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions'
-import { notFound } from 'next/navigation'
 import { auth } from '@/lib/auth/auth'
 
-async function getGRN(id: string) {
-  const grn = await prisma.goodsReceiptNote.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      status: true
-    }
-  })
+// async function getGRN(id: string) {
+//   const grn = await prisma.goodsReceiptNote.findUnique({
+//     where: { id },
+//     select: {
+//       id: true,
+//       status: true
+//     }
+//   })
 
-  if (!grn) {
-    notFound()
-  }
+//   if (!grn) {
+//     notFound()
+//   }
 
-  return grn
-}
+//   return grn
+// }
 
 export default async function GRNWorkflowPage({
   params
 }: {
-  params: { id: string }
+  params:Promise < { id: string }>
 }) {
   const session = await auth()
   
   if (!session?.user) {
     redirect('/login')
   }
-
-  // Check permission
-  if (!hasPermission(session.user.permissions, PERMISSIONS.GRN_READ)) {
-    redirect('/unauthorized')
-  }
-
-  const grn = await getGRN(params.id)
-
+const{id} = await params
+ 
   return (
     <div className="container mx-auto py-8">
       <Suspense fallback={<div>Loading workflow...</div>}>
         <ReceivingWorkflow 
-          grnId={grn.id}
-          initialStatus={grn.status}
+          grnId={id}
         />
       </Suspense>
     </div>

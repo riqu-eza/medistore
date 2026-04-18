@@ -259,7 +259,7 @@ export function usePendingAllocations() {
     setError(null)
 
     try {
-      const response = await fetch('/api/allocation/pending')
+      const response = await fetch('/api/allocation/')
       const result = await response.json()
 
       if (!response.ok) {

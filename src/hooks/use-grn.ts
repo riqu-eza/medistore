@@ -1,10 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // ============================================================================
 // GRN REACT HOOKS
 // Client-side hooks for GRN operations
 // ============================================================================
 
-import { useState, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
+import { useState, useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
 
 // ============================================================================
@@ -48,6 +48,14 @@ export interface CreateGRNInput {
 }
 
 export interface GRN {
+  vehicleNumber: any
+  driverName: any
+  deliveryTemperature: any
+  driverPhone: import("react/jsx-runtime").JSX.Element
+  temperatureCompliant: any
+  packagingIntact: any
+  labelsLegible: any
+  documentsComplete: any
   id: string
   grnNumber: string
   supplierId: string
@@ -126,6 +134,7 @@ export function useCreateGRN() {
  * Hook for fetching GRNs list
  */
 export function useGRNs(filters?: GRNFilters, page: number = 1, limit: number = 20) {
+  console.log('Using useGRNs with filters:', filters, 'page:', page, 'limit:', limit)
   const [grns, setGrns] = useState<GRN[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -154,7 +163,7 @@ export function useGRNs(filters?: GRNFilters, page: number = 1, limit: number = 
 
       const response = await fetch(`/api/grn?${params}`)
       const result = await response.json()
-
+console.log('Fetched GRNs:', result)
       if (!response.ok) {
         throw new Error(result.error || 'Failed to fetch GRNs')
       }
@@ -172,7 +181,9 @@ export function useGRNs(filters?: GRNFilters, page: number = 1, limit: number = 
       setLoading(false)
     }
   }, [filters, page, limit])
-
+useEffect(() =>{
+  fetchGRNs()
+},[fetchGRNs])
   return { grns, loading, error, pagination, fetchGRNs, refetch: fetchGRNs }
 }
 
@@ -209,7 +220,9 @@ export function useGRN(id: string | null) {
       setLoading(false)
     }
   }, [id])
-
+useEffect(()=>{
+  fetchGRN()
+}, [fetchGRN])
   return { grn, loading, error, fetchGRN, refetch: fetchGRN }
 }
 

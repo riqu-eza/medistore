@@ -19,7 +19,7 @@ const rejectSchema = z.object({
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
    
@@ -31,6 +31,9 @@ export async function POST(
         { status: 401 }
       )
     }
+
+    const [id] = await context.params.then(p => p.id)
+    const params = { id }
     
     const body = await request.json()
     const validated = rejectSchema.parse(body)

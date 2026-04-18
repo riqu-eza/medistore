@@ -93,7 +93,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
     const session = await auth();
@@ -106,10 +106,10 @@ export async function PATCH(
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-
+const { id } = await context.params
     // Get existing supplier
     const existingSupplier = await prisma.supplier.findUnique({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     if (!existingSupplier) {
@@ -190,7 +190,7 @@ export async function PATCH(
 
     // Update supplier
     const supplier = await prisma.supplier.update({
-      where: { id: params.id },
+      where: { id: id },
       data: updateData,
       include: {
         _count: {
@@ -231,7 +231,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } },
+    context: { params:Promise <{ id: string }> },
 ) {
   try {
     const session = await auth();
@@ -244,10 +244,10 @@ export async function DELETE(
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-
+const { id } = await context.params
     // Check if supplier exists
     const supplier = await prisma.supplier.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         _count: {
           select: {
@@ -278,7 +278,7 @@ export async function DELETE(
 
     // Delete supplier (cascade will handle related records)
     await prisma.supplier.delete({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     // Create audit log
@@ -287,7 +287,7 @@ export async function DELETE(
         userId: session.user.id,
         action: "delete",
         entityType: "Supplier",
-        entityId: params.id,
+        entityId: id,
         beforeValue: supplier,
       },
     });

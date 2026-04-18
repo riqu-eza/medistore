@@ -15,7 +15,7 @@ const bulkAllocationSchema = z.object({
     z.object({
       batchId: z.string().uuid(),
       targetStoreId: z.string().uuid(),
-      quantity: z.number().positive()
+      quantity: z.coerce.number().positive(), // ✅ FIX
     })
   ).min(1),
   notes: z.string().optional()

@@ -11,7 +11,7 @@ import Link from 'next/link'
 import AdminDashboard from '../admin/page'
 import AuditorDashboard from '../Auditor/page'
 import StoreKeeperDashboard from '../Store/page'
-import ReceivingDashboard from '../Receiving/page'
+import ReceivingDashboard from '../Receiver/drugs/page'
 import DispatchDashboard from '../dispatch/page'
 import GenericDashboard from '../Inventory/page'
 

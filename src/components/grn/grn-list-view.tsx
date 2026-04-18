@@ -23,8 +23,7 @@ import {
 } from '@/components/ui/table'
 import { 
   Package, 
-  Search, 
-  Filter, 
+  Search,  
   ChevronLeft, 
   ChevronRight,
   Eye,
@@ -46,8 +45,9 @@ export default function GRNListView({ suppliers = [] }: GRNListViewProps) {
 
   useEffect(() => {
     fetchGRNs()
+    
   }, [fetchGRNs])
-
+console.log('GRNs in view:', grns)
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved':
@@ -79,8 +79,8 @@ export default function GRNListView({ suppliers = [] }: GRNListViewProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Goods Receipt Notes</h1>
-          <p className="text-muted-foreground">Manage incoming drug deliveries</p>
+          <h1 className="text-3xl text-cyan-800 font-bold">Goods Receipt Notes</h1>
+          <p className="text-muted-foreground text-mist-600 ">Manage incoming drug deliveries</p>
         </div>
         <Button onClick={() => router.push('/grn/create')}>
           <Package className="w-4 h-4 mr-2" />
@@ -90,7 +90,7 @@ export default function GRNListView({ suppliers = [] }: GRNListViewProps) {
 
       {/* Filters */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className=" text-gray-600 pt-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Search</label>
@@ -178,7 +178,7 @@ export default function GRNListView({ suppliers = [] }: GRNListViewProps) {
       {/* Table */}
       <Card>
         <Table>
-          <TableHeader>
+          <TableHeader className="text-gray-800" >
             <TableRow>
               <TableHead>GRN Number</TableHead>
               <TableHead>Supplier</TableHead>
@@ -189,7 +189,7 @@ export default function GRNListView({ suppliers = [] }: GRNListViewProps) {
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className="text-gray-700" >
             {loading ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8">
@@ -246,7 +246,7 @@ export default function GRNListView({ suppliers = [] }: GRNListViewProps) {
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center text-gray-400 justify-between">
           <p className="text-sm text-muted-foreground">
             Showing {((page - 1) * pagination.limit) + 1} to {Math.min(page * pagination.limit, pagination.total)} of {pagination.total} results
           </p>

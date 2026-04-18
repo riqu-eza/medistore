@@ -19,7 +19,7 @@ const rejectSchema = z.object({
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
   
@@ -31,6 +31,9 @@ export async function POST(
         { status: 401 }
       )
     }
+    console.log('Approving GRN with params:', context.params,session)
+    const {id} = await context.params
+    const params = { id }
     const grn = await grnService.approveGRN(params.id, session)
     
     return NextResponse.json({

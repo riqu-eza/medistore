@@ -19,8 +19,10 @@ const updateGRNSchema = z.object({
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+   const  { id } = await context.params
+    const params = id 
   try {
  
     
@@ -32,7 +34,8 @@ export async function GET(
         { status: 401 }
       )
     }
-    const grn = await grnService.getGRNById(params.id, session)
+   
+    const grn = await grnService.getGRNById(params, session)
     
     return NextResponse.json({
       success: true,
@@ -62,8 +65,11 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+
+  const [id] = await context.params.then(p => p.id)
+  const params = { id }
   try {
     const session = await auth()
     

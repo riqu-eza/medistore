@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // ============================================================================
 // GRN CREATION FORM
 // Multi-step form for creating Goods Receipt Notes
@@ -5,18 +6,18 @@
 
 'use client'
 
-import { useState } from 'react'
+import { SetStateAction, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCreateGRN, CreateGRNInput, GRNItem } from '@/hooks/use-grn'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Plus, Trash2, Package, Truck, ClipboardCheck, FileText } from 'lucide-react'
 import { format } from 'date-fns'
+import { Textarea } from '../ui/textarea'
 
 interface GRNCreateFormProps {
   suppliers: Array<{ id: string; name: string; code: string }>
@@ -134,7 +135,7 @@ export default function GRNCreateForm({ suppliers, drugs }: GRNCreateFormProps) 
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className=" text-gray-600 max-w-5xl mx-auto space-y-6">
       {/* Progress Steps */}
       <div className="flex items-center justify-between mb-8">
         {[
@@ -501,7 +502,7 @@ export default function GRNCreateForm({ suppliers, drugs }: GRNCreateFormProps) 
               <Textarea
                 id="notes"
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={(e: { target: { value: SetStateAction<string> } }) => setNotes(e.target.value)}
                 placeholder="Add any additional notes..."
                 rows={4}
               />

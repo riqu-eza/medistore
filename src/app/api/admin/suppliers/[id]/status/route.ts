@@ -7,7 +7,7 @@ import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params :Promise <{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -19,7 +19,8 @@ export async function PATCH(
     if (!hasPermission(session.user.permissions, PERMISSIONS.SUPPLIERS_APPROVE)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-
+const [id] = await context.params.then(p => p.id)
+    const params = { id }
     const body = await request.json()
     const { status, reason } = body
 

@@ -122,7 +122,7 @@ export class AuthService {
     })
 
     // 7. Send welcome email to the new user (non-fatal)
-    sendWelcomeEmail(user.email, user.name).catch((err) =>
+    sendWelcomeEmail(user.email, user.name, user.id).catch((err) =>
       console.error('[AuthService] Welcome email failed:', err.message)
     )
 

@@ -15,9 +15,10 @@ function getCrypto(): Crypto {
 /**
  * Convert string to Uint8Array
  */
-function stringToUint8Array(str: string): Uint8Array {
+function stringToUint8Array(str: string): Uint8Array<ArrayBuffer> {
   const encoder = new TextEncoder()
-  return encoder.encode(str)
+  const encoded = encoder.encode(str)
+  return new Uint8Array(encoded.buffer.slice(0) as ArrayBuffer) as Uint8Array<ArrayBuffer>
 }
 
 /**
@@ -31,15 +32,20 @@ function uint8ArrayToString(arr: Uint8Array): string {
 /**
  * Convert hex string to Uint8Array
  */
-function hexToUint8Array(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2)
+function hexToUint8Array(hex: string): Uint8Array<ArrayBuffer> {
+  const buf = new ArrayBuffer(hex.length / 2)
+  const bytes = new Uint8Array(buf)
   for (let i = 0; i < hex.length; i += 2) {
     bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16)
   }
-  return bytes
+  return bytes as Uint8Array<ArrayBuffer>
 }
 
+function toBuffer(arr: Uint8Array): Uint8Array<ArrayBuffer> {
+  return new Uint8Array(arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength) as ArrayBuffer) as Uint8Array<ArrayBuffer>
+}
 /**
+ * 
  * Convert Uint8Array to hex string
  */
 function uint8ArrayToHex(arr: Uint8Array): string {
@@ -51,26 +57,7 @@ function uint8ArrayToHex(arr: Uint8Array): string {
 /**
  * Get encryption key from environment
  */
-async function getEncryptionKey(): Promise<CryptoKey> {
-  const keyString = process.env.ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET
-  
-  if (!keyString) {
-    throw new Error('ENCRYPTION_KEY or NEXTAUTH_SECRET is not set')
-  }
 
-  // Hash the key string to get consistent 256-bit key
-  const crypto = getCrypto()
-  const keyData = stringToUint8Array(keyString)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', keyData)
-  
-  return crypto.subtle.importKey(
-    'raw',
-    hashBuffer,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  )
-}
 
 // ============================================================================
 // ENCRYPTION FUNCTIONS (AES-GCM)
@@ -79,28 +66,26 @@ async function getEncryptionKey(): Promise<CryptoKey> {
 /**
  * Encrypt a string using Web Crypto API (AES-GCM)
  */
+
+async function getEncryptionKey(): Promise<CryptoKey> {
+  const keyString = process.env.ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET
+  if (!keyString) throw new Error('ENCRYPTION_KEY or NEXTAUTH_SECRET is not set')
+  const crypto = getCrypto()
+  const keyData = stringToUint8Array(keyString)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', keyData)  // ✅
+  return crypto.subtle.importKey('raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
+}
+
 export async function encrypt(text: string): Promise<string> {
   try {
     const crypto = getCrypto()
     const key = await getEncryptionKey()
-    
-    // Generate random IV (12 bytes for GCM)
-    const iv = crypto.getRandomValues(new Uint8Array(12))
-    
-    // Encrypt
-    const encoded = stringToUint8Array(text)
-    const ciphertext = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      encoded
-    )
-    
-    // Combine IV and ciphertext
+    const iv = toBuffer(crypto.getRandomValues(new Uint8Array(12)))  // ✅
+    const encoded = stringToUint8Array(text)                          // ✅
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded)
     const combined = new Uint8Array(iv.length + ciphertext.byteLength)
     combined.set(iv)
     combined.set(new Uint8Array(ciphertext), iv.length)
-    
-    // Return as hex string
     return uint8ArrayToHex(combined)
   } catch (error) {
     console.error('Encryption error:', error)
@@ -108,28 +93,14 @@ export async function encrypt(text: string): Promise<string> {
   }
 }
 
-/**
- * Decrypt a string using Web Crypto API (AES-GCM)
- */
 export async function decrypt(encryptedData: string): Promise<string> {
   try {
     const crypto = getCrypto()
     const key = await getEncryptionKey()
-    
-    // Convert hex to bytes
     const combined = hexToUint8Array(encryptedData)
-    
-    // Extract IV and ciphertext
-    const iv = combined.slice(0, 12)
-    const ciphertext = combined.slice(12)
-    
-    // Decrypt
-    const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      ciphertext
-    )
-    
+    const iv = toBuffer(combined.slice(0, 12))    // ✅
+    const ciphertext = toBuffer(combined.slice(12)) // ✅
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext)
     return uint8ArrayToString(new Uint8Array(decrypted))
   } catch (error) {
     console.error('Decryption error:', error)
@@ -137,6 +108,21 @@ export async function decrypt(encryptedData: string): Promise<string> {
   }
 }
 
+export async function hash(data: string): Promise<string> {
+  const crypto = getCrypto()
+  const encoded = stringToUint8Array(data)  // ✅
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoded)
+  return uint8ArrayToHex(new Uint8Array(hashBuffer))
+}
+
+export async function createHmac(data: string, secret: string): Promise<string> {
+  const crypto = getCrypto()
+  const keyData = stringToUint8Array(secret)  // ✅
+  const key = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const encoded = stringToUint8Array(data)    // ✅
+  const signature = await crypto.subtle.sign('HMAC', key, encoded)
+  return uint8ArrayToHex(new Uint8Array(signature))
+}
 // ============================================================================
 // PASSWORD HASHING (bcrypt - must be imported dynamically in server context)
 // ============================================================================
@@ -217,35 +203,7 @@ export function generateOTP(length: number = 6): string {
 /**
  * Hash data using SHA-256
  */
-export async function hash(data: string): Promise<string> {
-  const crypto = getCrypto()
-  const encoded = stringToUint8Array(data)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoded)
-  return uint8ArrayToHex(new Uint8Array(hashBuffer))
-}
 
-/**
- * Create HMAC signature using Web Crypto
- */
-export async function createHmac(data: string, secret: string): Promise<string> {
-  const crypto = getCrypto()
-  
-  // Import key
-  const keyData = stringToUint8Array(secret)
-  const key = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-  
-  // Sign
-  const encoded = stringToUint8Array(data)
-  const signature = await crypto.subtle.sign('HMAC', key, encoded)
-  
-  return uint8ArrayToHex(new Uint8Array(signature))
-}
 
 /**
  * Verify HMAC signature

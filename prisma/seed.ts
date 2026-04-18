@@ -81,8 +81,10 @@ async function main() {
           PERMISSIONS.GRN_CREATE,
           PERMISSIONS.GRN_READ,
           PERMISSIONS.GRN_UPDATE,
+          PERMISSIONS.GRN_APPROVE,
           PERMISSIONS.BATCHES_READ,
           PERMISSIONS.BATCHES_CREATE,
+          PERMISSIONS.INVENTORY_TRANSFER,
         ],
       isSystem: true,
       isActive: true,
@@ -132,19 +134,20 @@ async function main() {
   ];
 
   for (const roleData of roles) {
-    const existingRole = await prisma.role.findUnique({
-      where: { name: roleData.name },
-    });
+  await prisma.role.upsert({
+    where: { name: roleData.name },
+    update: {
+      displayName: roleData.displayName,
+      description: roleData.description,
+      permissions: roleData.permissions, // 🔥 critical
+      isSystem: roleData.isSystem,
+      isActive: roleData.isActive,
+    },
+    create: roleData,
+  });
 
-    if (existingRole) {
-      console.log(`   ⏭️  Role '${roleData.name}' already exists, skipping...`);
-    } else {
-      await prisma.role.create({
-        data: roleData,
-      });
-      console.log(`   ✅ Created role: ${roleData.displayName}`);
-    }
-  }
+  console.log(`✅ Synced role: ${roleData.name}`);
+}
 
   // ============================================================================
   // STEP 2: SEED ADMIN USER

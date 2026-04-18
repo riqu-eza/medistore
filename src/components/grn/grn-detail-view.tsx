@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // ============================================================================
 // GRN DETAIL VIEW
 // View GRN details and perform approval/rejection
@@ -11,7 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Textarea } from '@/components/ui/textarea'
 import { 
   Dialog,
   DialogContent,
@@ -50,6 +50,21 @@ import {
   ArrowRight
 } from 'lucide-react'
 import { format } from 'date-fns'
+
+interface GRNItem {
+  id: string
+  drug?: {
+    genericName: string
+    brandName?: string
+  }
+  batchNumber: string
+  expiryDate: string
+  receivedQuantity: number
+  rejectedQuantity?: number
+  acceptedQuantity: number
+  unitCost?: number
+  totalCost?: number
+}
 
 interface GRNDetailViewProps {
   grnId: string
@@ -110,10 +125,10 @@ export default function GRNDetailView({ grnId, onApproved }: GRNDetailViewProps)
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{grn.grnNumber}</h1>
-          <p className="text-muted-foreground">Goods Receipt Note Details</p>
+          <h1 className="text-3xl text-blue-500 font-bold">{grn.grnNumber}</h1>
+          <p className="text-muted-foreground text-gray-800">Goods Receipt Note Details</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex text-blue-400 gap-2">
           {canApprove && (
             <>
               <Button
@@ -156,12 +171,12 @@ export default function GRNDetailView({ grnId, onApproved }: GRNDetailViewProps)
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex text-gray-700 items-center gap-2">
               <Package className="w-5 h-5" />
               Supplier Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 text-gray-600">
             <div>
               <p className="text-sm text-muted-foreground">Name</p>
               <p className="font-medium">{grn.supplier?.name}</p>
@@ -175,12 +190,12 @@ export default function GRNDetailView({ grnId, onApproved }: GRNDetailViewProps)
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex text-gray-700 items-center gap-2">
               <Calendar className="w-5 h-5" />
               Receiving Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 text-gray-600">
             <div>
               <p className="text-sm text-muted-foreground">Received Date</p>
               <p className="font-medium">
@@ -199,13 +214,13 @@ export default function GRNDetailView({ grnId, onApproved }: GRNDetailViewProps)
       {(grn.vehicleNumber || grn.driverName || grn.deliveryTemperature) && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className=" text-gray-700 flex items-center gap-2">
               <Truck className="w-5 h-5" />
               Delivery Details
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-gray-600">
               {grn.vehicleNumber && (
                 <div>
                   <p className="text-sm text-muted-foreground">Vehicle Number</p>
@@ -240,10 +255,10 @@ export default function GRNDetailView({ grnId, onApproved }: GRNDetailViewProps)
 
       {/* Quality Checks */}
       <Card>
-        <CardHeader>
+        <CardHeader className='text-gray-700' >
           <CardTitle>Quality Checks</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className='text-gray-600'>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="flex items-center gap-2">
               {grn.temperatureCompliant ? (
@@ -283,13 +298,13 @@ export default function GRNDetailView({ grnId, onApproved }: GRNDetailViewProps)
 
       {/* Items */}
       <Card>
-        <CardHeader>
+        <CardHeader className="text-gray-700" >
           <CardTitle>GRN Items ({grn.items?.length || 0})</CardTitle>
           <CardDescription>
             Total Value: ${grn.totalValue?.toLocaleString() || '0'}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className='text-gray-600' >
           <Table>
             <TableHeader>
               <TableRow>
@@ -304,7 +319,7 @@ export default function GRNDetailView({ grnId, onApproved }: GRNDetailViewProps)
               </TableRow>
             </TableHeader>
             <TableBody>
-              {grn.items?.map((item: any) => (
+              {grn.items?.map((item: GRNItem) => (
                 <TableRow key={item.id}>
                   <TableCell>
                     <div>
@@ -326,10 +341,10 @@ export default function GRNDetailView({ grnId, onApproved }: GRNDetailViewProps)
                     {item.acceptedQuantity}
                   </TableCell>
                   <TableCell>
-                    {item.unitCost ? `$${item.unitCost}` : '-'}
+                    {item.unitCost ? `Ksh ${item.unitCost}` : '-'}
                   </TableCell>
                   <TableCell>
-                    {item.totalCost ? `$${item.totalCost}` : '-'}
+                    {item.totalCost ? `Ksh ${item.totalCost}` : '-'}
                   </TableCell>
                 </TableRow>
               ))}
@@ -342,11 +357,11 @@ export default function GRNDetailView({ grnId, onApproved }: GRNDetailViewProps)
       {grn.status !== 'pending' && (
         <Card>
           <CardHeader>
-            <CardTitle>
+            <CardTitle className="text-gray-700 ">
               {grn.status === 'approved' ? 'Approval' : 'Rejection'} Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className=" text-gray-600 space-y-4">
             {grn.approver && (
               <div>
                 <p className="text-sm text-muted-foreground">
@@ -393,8 +408,8 @@ export default function GRNDetailView({ grnId, onApproved }: GRNDetailViewProps)
       </AlertDialog>
 
       {/* Reject Dialog */}
-      <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
-        <DialogContent>
+      <Dialog  open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+        <DialogContent className='className="text-red-600"' >
           <DialogHeader>
             <DialogTitle>Reject GRN</DialogTitle>
             <DialogDescription>
@@ -402,7 +417,7 @@ export default function GRNDetailView({ grnId, onApproved }: GRNDetailViewProps)
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Textarea
+            <textarea
               placeholder="Enter rejection reason (minimum 10 characters)..."
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}

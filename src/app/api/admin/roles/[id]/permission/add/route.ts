@@ -1,17 +1,18 @@
-import { NextResponse } from "next/server"
-import { RoleService } from "@/lib/services/role.service"
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { NextRequest, NextResponse } from "next/server"
 import { permissionPatchSchema } from "@/lib/validators/role.schema"
+import { RoleService } from "@/lib/services/Role.service"
 
 export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params :Promise <{ id: string }> }
 ) {
   try {
-    const body = await req.json()
+    const body = await request.json()
     const { permissions } = permissionPatchSchema.parse(body)
-
+const { id } = await context.params
     const role = await RoleService.addPermissions(
-      Number(params.id),
+      Number(id),
       permissions
     )
 

@@ -1,4 +1,4 @@
-import { QuickActions, StatCard } from "../dashboard/page"
+import { QuickActions, StatCard } from "../../dashboard/page"
 
 export default function ReceivingDashboard() {
   const stats = [
@@ -19,7 +19,7 @@ export default function ReceivingDashboard() {
       <div className="grid lg:grid-cols-2 gap-6">
         <QuickActions title="Receiving Tasks" actions={[
           { label: 'Create GRN', href: '/grn/create', icon: '➕' },
-          { label: 'Pending Approvals (5)', href: '/grn?status=pending', icon: '⏳', badge: 5 },
+          { label: 'Pending Approvals ', href: '/grn?status=pending', icon: '⏳', },
           { label: 'View All GRNs', href: '/grn', icon: '📋' },
         ]} />
 
