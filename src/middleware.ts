@@ -10,6 +10,8 @@ const PUBLIC_ROUTES = [
   '/auth/reset-password',
   '/auth/verify-email',
   '/auth/error',
+  `/api/auth',           
+  '/api/auth/error',
 ]
 
 const PROTECTED_API_ROUTES = [
