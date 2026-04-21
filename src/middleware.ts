@@ -10,7 +10,7 @@ const PUBLIC_ROUTES = [
   '/auth/reset-password',
   '/auth/verify-email',
   '/auth/error',
-  `/api/auth',           
+  '/api/auth/',
   '/api/auth/error',
 ]
 
