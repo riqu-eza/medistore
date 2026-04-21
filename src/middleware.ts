@@ -1,6 +1,6 @@
 import NextAuth from 'next-auth'
 import { authConfig } from '@/lib/auth/auth.config'
-import { NextResponse } from 'next/server'  // ✅ safe to import
+import { NextResponse } from 'next/server'
 
 const { auth } = NextAuth(authConfig)
 
@@ -9,9 +9,8 @@ const PUBLIC_ROUTES = [
   '/auth/forgot-password',
   '/auth/reset-password',
   '/auth/verify-email',
+  '/auth/change-password',
   '/auth/error',
-  '/api/auth/',
-  '/api/auth/error',
 ]
 
 const PROTECTED_API_ROUTES = [
@@ -30,6 +29,11 @@ const PROTECTED_API_ROUTES = [
 export default auth((req) => {
   const { pathname } = req.nextUrl
   const session = req.auth
+
+  // ✅ Always allow NextAuth internal routes first — before any other check
+  if (pathname.startsWith('/api/auth')) {
+    return NextResponse.next()
+  }
 
   // Already logged in → skip login page
   if (pathname === '/auth/login' && session?.user) {
