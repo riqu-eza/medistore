@@ -162,7 +162,7 @@ export default function DrugForm({
   const isControlledForced = watchRegulatoryClass === "controlled";
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-0" noValidate>
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-0 text-black " noValidate>
       <div className="overflow-y-auto max-h-[65vh] px-6 py-5 flex flex-col gap-6">
 
         {/* ── Section 1: Identification ── */}

@@ -9,7 +9,7 @@
 import { useAuth } from '@/hooks/use-auth'
 import Link from 'next/link'
 import AdminDashboard from '../admin/page'
-import AuditorDashboard from '../Auditor/page'
+import AuditorDashboard from '../admin/auditor/page'
 import StoreKeeperDashboard from '../Store/page'
 import ReceivingDashboard from '../Receiver/drugs/page'
 import DispatchDashboard from '../dispatch/page'

@@ -26,13 +26,50 @@ const PROTECTED_API_ROUTES = [
   '/api/admin',
 ]
 
+// ✅ All real app routes that exist in your project.
+// Add new routes here as you build them.
+const KNOWN_ROUTES = [
+  '/dashboard',
+  '/admin',
+  '/admin/users',
+  '/admin/roles',
+  '/admin/stores',
+  '/drugs',
+  '/suppliers',
+  '/inventory',
+  '/grn',
+  '/orders',
+  '/dispatch',
+  '/reports',
+  '/profile',
+  '/stores',
+]
+
+function isKnownRoute(pathname: string): boolean {
+  // Always allow public routes
+  if (PUBLIC_ROUTES.some((r) => pathname.startsWith(r))) return true
+
+  // Always allow API routes (auth + protected)
+  if (pathname.startsWith('/api/')) return true
+
+  // Check against known app routes
+  return KNOWN_ROUTES.some(
+    (r) => pathname === r || pathname.startsWith(r + '/')
+  )
+}
+
 export default auth((req) => {
   const { pathname } = req.nextUrl
   const session = req.auth
 
-  // ✅ Always allow NextAuth internal routes first — before any other check
+  // ✅ Always allow NextAuth internal routes first
   if (pathname.startsWith('/api/auth')) {
     return NextResponse.next()
+  }
+
+  // ✅ If the route is not known → show Coming Soon (not-found page)
+  if (!isKnownRoute(pathname)) {
+    return NextResponse.rewrite(new URL('/not-found', req.url))
   }
 
   // Already logged in → skip login page

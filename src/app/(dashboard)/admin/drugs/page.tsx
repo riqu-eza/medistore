@@ -237,7 +237,7 @@ export default function DrugsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen text-black bg-slate-50 font-sans">
       {/* Page Header */}
       <div className="bg-white border-b border-slate-200 px-6 py-5">
         <div className="max-w-screen-xl mx-auto flex items-center justify-between gap-4">

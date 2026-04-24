@@ -283,7 +283,7 @@ export async function createGRN(
         totalItems: input.items.length,
         status: 'pending'
       }
-    })
+    },{timeout: 10000})
     
     // Create GRN items
     const grnItems = await Promise.all(

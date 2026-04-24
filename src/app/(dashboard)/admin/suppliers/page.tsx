@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/exhaustive-deps */
 // ============================================================================
 // SUPPLIERS LIST PAGE
 // File: src/app/(dashboard)/suppliers/page.tsx
@@ -29,7 +31,6 @@ interface Supplier {
 }
 
 export default function SuppliersPage() {
-  const router = useRouter()
   const { hasPermission } = useAuth()
   
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -43,9 +44,7 @@ export default function SuppliersPage() {
   const canCreate = hasPermission(PERMISSIONS.SUPPLIERS_CREATE)
   const canUpdate = hasPermission(PERMISSIONS.SUPPLIERS_UPDATE)
 
-  useEffect(() => {
-    fetchSuppliers()
-  }, [search, statusFilter, typeFilter, currentPage])
+
 
   const fetchSuppliers = async () => {
     try {
@@ -71,7 +70,9 @@ export default function SuppliersPage() {
       setLoading(false)
     }
   }
-
+  useEffect(() => {
+    fetchSuppliers()
+  }, [search, statusFilter, typeFilter, currentPage])
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -94,7 +95,7 @@ export default function SuppliersPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg border border-slate-200 p-4">
+      <div className="bg-white rounded-lg border border-slate-200 p-4 text-gray-700">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Search */}
           <div className="md:col-span-2">
@@ -268,7 +269,7 @@ export default function SuppliersPage() {
                         </Link>
                         {canUpdate && (
                           <Link
-                            href={`/admin/suppliers/${supplier.id}edit`}
+                            href={`/admin/suppliers/${supplier.id}/edit`}
                             className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
                             title="Edit"
                           >

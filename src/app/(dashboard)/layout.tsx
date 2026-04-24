@@ -34,7 +34,7 @@ const getNavigationItems = (role: string): NavItem[] => {
       { name: 'GRN', href: '/admin/grn', icon: <ClipboardIcon />, permission: PERMISSIONS.GRN_READ },
       { name: 'Orders', href: '/admin/orders', icon: <ShoppingIcon />, permission: PERMISSIONS.ORDERS_READ, badge: 5 },
       { name: 'Reports', href: '/admin/reports', icon: <ChartIcon />, permission: PERMISSIONS.REPORTS_VIEW },
-      { name: 'Audit Logs', href: '/admin/audit', icon: <ShieldIcon />, permission: PERMISSIONS.AUDIT_VIEW },
+      { name: 'Audit Logs', href: '/auditor/viewall', icon: <ShieldIcon />, permission: PERMISSIONS.AUDIT_VIEW },
       { name: 'Admin Panel', href: '/admin', icon: <SettingsIcon /> },
     ],
 

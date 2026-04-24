@@ -79,10 +79,11 @@ const id = supplierId
   }
 
   const handleStatusChange = async (newStatus: string, reason?: string) => {
-    if (!confirm(`Are you sure you want to change status to ${newStatus}?`)) return
+    // console.log(`Changing status to ${newStatus} for supplier ${supplierId} with reason: ${reason}`)
+    // if (!confirm(`Are you sure you want to change status to ${newStatus}?`)) return
 
     try {
-      const res = await fetch(`/api/suppliers/${supplierId}/status`, {
+      const res = await fetch(`/api/admin/suppliers/${supplierId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus, reason }),

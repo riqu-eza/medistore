@@ -1,4 +1,4 @@
-import { QuickActions, StatCard } from "../dashboard/page"
+import { QuickActions, StatCard } from "../../dashboard/page"
 
 export default function AuditorDashboard() {
   const stats = [

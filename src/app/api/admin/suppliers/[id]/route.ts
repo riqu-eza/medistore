@@ -19,6 +19,7 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
+    console.log("Fetching supplier with ID:", id);
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

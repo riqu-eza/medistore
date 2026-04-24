@@ -32,8 +32,7 @@ export async function POST(
       )
     }
     console.log('Approving GRN with params:', context.params,session)
-    const {id} = await context.params
-    const params = { id }
+    const params = await context.params
     const grn = await grnService.approveGRN(params.id, session)
     
     return NextResponse.json({

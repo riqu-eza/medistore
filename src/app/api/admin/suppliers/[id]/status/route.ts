@@ -19,11 +19,11 @@ export async function PATCH(
     if (!hasPermission(session.user.permissions, PERMISSIONS.SUPPLIERS_APPROVE)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-const [id] = await context.params.then(p => p.id)
+const {id} = await context.params
     const params = { id }
     const body = await request.json()
     const { status, reason } = body
-
+console.log(`Received request to change status of supplier ${params.id} to ${status} with reason: ${reason}`)
     // Validate status
     const validStatuses = ['pending', 'approved', 'suspended', 'blacklisted']
     if (!validStatuses.includes(status)) {

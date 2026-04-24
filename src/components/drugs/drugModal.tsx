@@ -60,7 +60,7 @@ const { data: drug, isLoading: drugLoading } = useDrugById(drugId ?? null);
     <div
       ref={overlayRef}
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 text-black backdrop-blur-sm p-4"
     >
       <div
         className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col"

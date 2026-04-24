@@ -64,8 +64,8 @@ export async function GET(req: NextRequest) {
       }
     )
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    console.error('[Stats API]', message)
+    // const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[Stats API]', error)
     return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 })
   }
 }
