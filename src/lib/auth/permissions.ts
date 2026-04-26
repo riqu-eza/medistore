@@ -68,6 +68,7 @@ export const PERMISSIONS = {
   ORDERS_APPROVE: "orders:approve",
   ORDERS_ALLOCATE: "orders:allocate",
   ORDERS_CANCEL: "orders:cancel",
+  ORDERS_DISPATCH:"orders:dispatch",  
   ORDERS_REALLOCATE: "orders:reallocate", // NEW: For partial allocation retry
 
   // Dispatch Management
@@ -119,6 +120,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.ORDERS_UPDATE,
     PERMISSIONS.ORDERS_APPROVE,
     PERMISSIONS.ORDERS_ALLOCATE,
+    PERMISSIONS.ORDERS_DISPATCH,
     PERMISSIONS.DISPATCH_READ,
     PERMISSIONS.REPORTS_VIEW,
     PERMISSIONS.AUDIT_VIEW,
@@ -153,6 +155,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.BATCHES_READ,
         PERMISSIONS.REPORTS_VIEW,
     PERMISSIONS.AUDIT_VIEW,
+    PERMISSIONS.ORDERS_DISPATCH,
   ],
 
   inventory_officer: [

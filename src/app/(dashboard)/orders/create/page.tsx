@@ -157,7 +157,7 @@ export default function CreateOrderPage() {
 
       const data = await res.json();
       if (res.ok) {
-        router.push(`/dashboard/orders/${data.data.id}`);
+        router.push(`/orders/${data.data.id}`);
       } else {
         alert(data.error || "Failed to create order");
       }
