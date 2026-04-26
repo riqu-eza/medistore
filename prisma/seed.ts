@@ -4,159 +4,262 @@ import { hash } from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+// ============================================================================
+// ROLE DEFINITIONS
+// Edit permissions here — the seed will add/remove them automatically
+// ============================================================================
+
+const ROLE_DEFINITIONS = [
+  {
+    name: "admin",
+    displayName: "System Administrator",
+    description: "Full system access with all permissions",
+    permissions: [PERMISSIONS.ALL],
+    isSystem: true,
+    isActive: true,
+  },
+  {
+    name: "inventory_officer",
+    displayName: "Inventory Officer",
+    description: "Manages inventory, GRNs, and orders",
+    permissions: [
+      PERMISSIONS.DRUGS_READ,
+      PERMISSIONS.STORES_READ,
+      PERMISSIONS.INVENTORY_READ,
+      PERMISSIONS.INVENTORY_WRITE,
+      PERMISSIONS.INVENTORY_TRANSFER,
+      PERMISSIONS.INVENTORY_ADJUST,
+      PERMISSIONS.BATCHES_READ,
+      PERMISSIONS.REPORTS_VIEW,
+      PERMISSIONS.REPORTS_VIEW,
+      PERMISSIONS.AUDIT_VIEW,
+      PERMISSIONS.ORDERS_READ,
+      PERMISSIONS.ORDERS_APPROVE,
+      PERMISSIONS.ORDERS_ALLOCATE,
+      PERMISSIONS.ORDERS_CANCEL,
+      PERMISSIONS.DISPATCH_READ,
+      PERMISSIONS.REPORTS_VIEW,
+    ],
+    isSystem: true,
+    isActive: true,
+  },
+  {
+    name: "store_manager",
+    displayName: "Store Keeper",
+    description: "Manages store operations and inventory",
+    permissions: [
+      PERMISSIONS.USERS_READ,
+      PERMISSIONS.DRUGS_READ,
+      PERMISSIONS.SUPPLIERS_READ,
+      PERMISSIONS.STORES_READ,
+      PERMISSIONS.INVENTORY_READ,
+      PERMISSIONS.INVENTORY_WRITE,
+      PERMISSIONS.INVENTORY_TRANSFER,
+      PERMISSIONS.INVENTORY_ADJUST,
+      PERMISSIONS.GRN_READ,
+      PERMISSIONS.GRN_APPROVE,
+      PERMISSIONS.BATCHES_READ,
+      PERMISSIONS.BATCHES_QUARANTINE,
+      PERMISSIONS.ORDERS_READ,
+      PERMISSIONS.ORDERS_CREATE,
+      PERMISSIONS.ORDERS_UPDATE,
+      PERMISSIONS.ORDERS_APPROVE,
+      PERMISSIONS.ORDERS_ALLOCATE,
+      PERMISSIONS.DISPATCH_READ,
+      PERMISSIONS.REPORTS_VIEW,
+      PERMISSIONS.AUDIT_VIEW,
+    ],
+    isSystem: true,
+    isActive: true,
+  },
+  {
+    name: "receiving_officer",
+    displayName: "Receiving Manager",
+    description: "Manages receiving and quality control of incoming drugs",
+    permissions: [
+      PERMISSIONS.DRUGS_READ,
+      PERMISSIONS.SUPPLIERS_READ,
+      PERMISSIONS.STORES_READ,
+      PERMISSIONS.INVENTORY_READ,
+      PERMISSIONS.GRN_CREATE,
+      PERMISSIONS.GRN_READ,
+      PERMISSIONS.GRN_UPDATE,
+      PERMISSIONS.GRN_APPROVE,
+      PERMISSIONS.BATCHES_READ,
+      PERMISSIONS.BATCHES_CREATE,
+      PERMISSIONS.INVENTORY_TRANSFER,
+      PERMISSIONS.REPORTS_VIEW,
+      PERMISSIONS.AUDIT_VIEW,
+    ],
+    isSystem: true,
+    isActive: true,
+  },
+  {
+    name: "dispatch_officer",
+    displayName: "Dispatch Officer",
+    description: "Manages dispatching of drugs to facilities and customers",
+    permissions: [
+      PERMISSIONS.DRUGS_READ,
+      PERMISSIONS.STORES_READ,
+      PERMISSIONS.INVENTORY_READ,
+      PERMISSIONS.ORDERS_READ,
+      PERMISSIONS.DISPATCH_CREATE,
+      PERMISSIONS.DISPATCH_READ,
+      PERMISSIONS.DISPATCH_UPDATE,
+      PERMISSIONS.DISPATCH_CONFIRM,
+      PERMISSIONS.BATCHES_READ,
+    ],
+    isSystem: true,
+    isActive: true,
+  },
+  {
+    name: "auditor",
+    displayName: "Auditor",
+    description: "View-only access for auditing purposes",
+    permissions: [
+      PERMISSIONS.DRUGS_READ,
+      PERMISSIONS.SUPPLIERS_READ,
+      PERMISSIONS.STORES_READ,
+      PERMISSIONS.INVENTORY_READ,
+      PERMISSIONS.GRN_READ,
+      PERMISSIONS.BATCHES_READ,
+      PERMISSIONS.ORDERS_READ,
+      PERMISSIONS.DISPATCH_READ,
+      PERMISSIONS.REPORTS_VIEW,
+      PERMISSIONS.REPORTS_EXPORT,
+      PERMISSIONS.AUDIT_VIEW,
+      PERMISSIONS.AUDIT_EXPORT,
+      PERMISSIONS.ANALYTICS_VIEW,
+    ],
+    isSystem: true,
+    isActive: true,
+  },
+];
+
+// ============================================================================
+// HELPER: sync permissions — adds new ones, removes revoked ones
+// ============================================================================
+
+async function syncRolePermissions(
+  roleName: string,
+  desiredPermissions: string[],
+  currentPermissions: string[],
+): Promise<{ added: string[]; removed: string[] }> {
+  const desiredSet = new Set(desiredPermissions);
+  const currentSet = new Set(currentPermissions);
+
+  const added = desiredPermissions.filter((p) => !currentSet.has(p));
+  const removed = currentPermissions.filter((p) => !desiredSet.has(p));
+
+  if (added.length === 0 && removed.length === 0) {
+    console.log(`   ✅ [${roleName}] Permissions already in sync — no changes`);
+    return { added: [], removed: [] };
+  }
+
+  if (added.length > 0) {
+    console.log(`   ➕ [${roleName}] Adding ${added.length} permission(s):`);
+    added.forEach((p) => console.log(`      + ${p}`));
+  }
+
+  if (removed.length > 0) {
+    console.log(
+      `   ➖ [${roleName}] Removing ${removed.length} permission(s):`,
+    );
+    removed.forEach((p) => console.log(`      - ${p}`));
+  }
+
+  return { added, removed };
+}
+
+// ============================================================================
+// MAIN SEED
+// ============================================================================
+
 async function main() {
   console.log("🌱 Starting database seed...");
 
-  // ============================================================================
-  // STEP 1: SEED ROLES
-  // ============================================================================
-  console.log("\n📋 Seeding roles...");
+  // --------------------------------------------------------------------------
+  // STEP 1: SEED / SYNC ROLES & PERMISSIONS
+  // --------------------------------------------------------------------------
+  console.log("\n📋 Seeding roles and syncing permissions...");
 
-  const roles = [
-    {
-      name: "admin",
-      displayName: "System Administrator",
-      description: "Full system access with all permissions",
-      permissions: [PERMISSIONS.ALL],
-      isSystem: true,
-      isActive: true,
-    },
-    {
-      name: "inventory_officer",
-      displayName: "Inventory Officer",
-      description: "Manages inventory, GRNs, and orders",
-      permissions: 
-      [
-          PERMISSIONS.DRUGS_READ,
-          PERMISSIONS.STORES_READ,
-          PERMISSIONS.INVENTORY_READ,
-          PERMISSIONS.INVENTORY_WRITE,
-          PERMISSIONS.INVENTORY_TRANSFER,
-          PERMISSIONS.INVENTORY_ADJUST,
-          PERMISSIONS.BATCHES_READ,
-          PERMISSIONS.REPORTS_VIEW,
-        ],
-      isSystem: true,
-      isActive: true,
-    },
-    {
-      name: "store_manager",
-      displayName: "Store Keeper",
-      description: "Manages store operations and inventory",
-      permissions: [
-        PERMISSIONS.USERS_READ,
-        PERMISSIONS.DRUGS_READ,
-        PERMISSIONS.SUPPLIERS_READ,
-        PERMISSIONS.STORES_READ,
-        PERMISSIONS.INVENTORY_READ,
-        PERMISSIONS.INVENTORY_WRITE,
-        PERMISSIONS.INVENTORY_TRANSFER,
-        PERMISSIONS.INVENTORY_ADJUST,
-        PERMISSIONS.GRN_READ,
-        PERMISSIONS.GRN_APPROVE,
-        PERMISSIONS.BATCHES_READ,
-        PERMISSIONS.BATCHES_QUARANTINE,
-        PERMISSIONS.ORDERS_READ,
-        PERMISSIONS.ORDERS_CREATE,
-        PERMISSIONS.ORDERS_UPDATE,
-        PERMISSIONS.ORDERS_APPROVE,
-        PERMISSIONS.ORDERS_ALLOCATE,
-        PERMISSIONS.DISPATCH_READ,
-        PERMISSIONS.REPORTS_VIEW,
-        PERMISSIONS.AUDIT_VIEW,
-      ],
-      isSystem: true,
-      isActive: true,
-    },
-    {
-      name: "receiving_officer",
-      displayName: "receiving Manager",
-      description: "Manages receiving and quality control of incoming drugs",
-      permissions: 
-      [
-          PERMISSIONS.DRUGS_READ,
-          PERMISSIONS.SUPPLIERS_READ,
-          PERMISSIONS.STORES_READ,
-          PERMISSIONS.INVENTORY_READ,
-          PERMISSIONS.GRN_CREATE,
-          PERMISSIONS.GRN_READ,
-          PERMISSIONS.GRN_UPDATE,
-          PERMISSIONS.GRN_APPROVE,
-          PERMISSIONS.BATCHES_READ,
-          PERMISSIONS.BATCHES_CREATE,
-          PERMISSIONS.INVENTORY_TRANSFER,
-        ],
-      isSystem: true,
-      isActive: true,
-    },
-    {
-      name: "dispatch_officer",
-      displayName: "Dispatch Officer",
-      description: "Manages dispatching of drugs to facilities and customers",
-      permissions: 
-      [
-          PERMISSIONS.DRUGS_READ,
-          PERMISSIONS.STORES_READ,
-          PERMISSIONS.INVENTORY_READ,
-          PERMISSIONS.ORDERS_READ,
-          PERMISSIONS.DISPATCH_CREATE,
-          PERMISSIONS.DISPATCH_READ,
-          PERMISSIONS.DISPATCH_UPDATE,
-          PERMISSIONS.DISPATCH_CONFIRM,
-          PERMISSIONS.BATCHES_READ,
-        ],
-      isSystem: true,
-      isActive: true,
-    },
-    {
-      name: "auditor",
-      displayName: "Auditor",
-      description: "View-only access for auditing purposes",
-      permissions: 
-      [
-    PERMISSIONS.DRUGS_READ,
-    PERMISSIONS.SUPPLIERS_READ,
-    PERMISSIONS.STORES_READ,
-    PERMISSIONS.INVENTORY_READ,
-    PERMISSIONS.GRN_READ,
-    PERMISSIONS.BATCHES_READ,
-    PERMISSIONS.ORDERS_READ,
-    PERMISSIONS.DISPATCH_READ,
-    PERMISSIONS.REPORTS_VIEW,
-    PERMISSIONS.REPORTS_EXPORT,
-    PERMISSIONS.AUDIT_VIEW,
-    PERMISSIONS.AUDIT_EXPORT,
-    PERMISSIONS.ANALYTICS_VIEW,
-  ],
-      isSystem: true,
-      isActive: true,
-    },
-  ];
+  for (const roleData of ROLE_DEFINITIONS) {
+    // Fetch current state from DB (if it exists)
+    const existing = await prisma.role.findUnique({
+      where: { name: roleData.name },
+    });
 
-  for (const roleData of roles) {
-  await prisma.role.upsert({
-    where: { name: roleData.name },
-    update: {
-      displayName: roleData.displayName,
-      description: roleData.description,
-      permissions: roleData.permissions, // 🔥 critical
-      isSystem: roleData.isSystem,
-      isActive: roleData.isActive,
-    },
-    create: roleData,
+    if (existing) {
+      // Role exists — compute permission diff
+      const currentPerms = (existing.permissions as string[]) ?? [];
+      const { added, removed } = await syncRolePermissions(
+        roleData.name,
+        roleData.permissions,
+        currentPerms,
+      );
+
+      const hasChanges = added.length > 0 || removed.length > 0;
+
+      if (hasChanges) {
+        await prisma.role.update({
+          where: { name: roleData.name },
+          data: {
+            displayName: roleData.displayName,
+            description: roleData.description,
+            permissions: roleData.permissions, // full replacement with desired set
+            isSystem: roleData.isSystem,
+            isActive: roleData.isActive,
+          },
+        });
+        console.log(`   💾 [${roleData.name}] Saved updated permissions`);
+      } else {
+        // Still update non-permission fields in case they changed
+        await prisma.role.update({
+          where: { name: roleData.name },
+          data: {
+            displayName: roleData.displayName,
+            description: roleData.description,
+            isSystem: roleData.isSystem,
+            isActive: roleData.isActive,
+          },
+        });
+      }
+    } else {
+      // Role does not exist — create from scratch
+      await prisma.role.create({ data: roleData });
+      console.log(
+        `   🆕 [${roleData.name}] Created with ${roleData.permissions.length} permission(s)`,
+      );
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // STEP 2: WARN ABOUT ROLES IN DB THAT ARE NO LONGER IN DEFINITIONS
+  // --------------------------------------------------------------------------
+  console.log("\n🔍 Checking for orphaned roles...");
+
+  const definedNames = new Set(ROLE_DEFINITIONS.map((r) => r.name));
+  const allDbRoles = await prisma.role.findMany({
+    select: { name: true, isSystem: true },
   });
 
-  console.log(`✅ Synced role: ${roleData.name}`);
-}
+  for (const dbRole of allDbRoles) {
+    if (!definedNames.has(dbRole.name)) {
+      console.warn(
+        `   ⚠️  Role '${dbRole.name}' exists in DB but is NOT in ROLE_DEFINITIONS.` +
+          (dbRole.isSystem
+            ? " It is a system role — skipping auto-delete. Remove manually if intended."
+            : " Consider removing it if it is no longer needed."),
+      );
+    }
+  }
 
-  // ============================================================================
-  // STEP 2: SEED ADMIN USER
-  // ============================================================================
+  // --------------------------------------------------------------------------
+  // STEP 3: SEED ADMIN USER
+  // --------------------------------------------------------------------------
   console.log("\n👤 Seeding admin user...");
 
-  const adminRole = await prisma.role.findFirst({
-    where: { name: "admin" },
-  });
+  const adminRole = await prisma.role.findFirst({ where: { name: "admin" } });
 
   if (!adminRole) {
     throw new Error(
@@ -172,7 +275,6 @@ async function main() {
     console.log("   ⏭️  Admin user already exists, skipping...");
   } else {
     const passwordHash = await hash("Admin@123", 12);
-
     const admin = await prisma.user.create({
       data: {
         email: "muthungavictor@zetech.ac.ke",
@@ -185,14 +287,13 @@ async function main() {
         lastPasswordChange: new Date(),
       },
     });
-
     console.log(`   ✅ Admin user created: ${admin.email}`);
-    console.log(`   🔑 Password: Admin@123`);
+    console.log(`   🔑 Default password: Admin@123`);
   }
 
-  // ============================================================================
-  // STEP 3: SEED DRUG CATEGORIES (Optional but recommended)
-  // ============================================================================
+  // --------------------------------------------------------------------------
+  // STEP 4: SEED DRUG CATEGORIES
+  // --------------------------------------------------------------------------
   console.log("\n🏷️  Seeding drug categories...");
 
   const categories = [
@@ -254,26 +355,21 @@ async function main() {
     },
   ];
 
-  for (const categoryData of categories) {
-    const existingCategory = await prisma.drugCategory.findUnique({
-      where: { name: categoryData.name },
+  for (const cat of categories) {
+    const existing = await prisma.drugCategory.findUnique({
+      where: { name: cat.name },
     });
-
-    if (existingCategory) {
-      console.log(
-        `   ⏭️  Category '${categoryData.name}' already exists, skipping...`,
-      );
+    if (existing) {
+      console.log(`   ⏭️  Category '${cat.name}' already exists, skipping...`);
     } else {
-      await prisma.drugCategory.create({
-        data: categoryData,
-      });
-      console.log(`   ✅ Created category: ${categoryData.name}`);
+      await prisma.drugCategory.create({ data: cat });
+      console.log(`   ✅ Created category: ${cat.name}`);
     }
   }
 
-  // ============================================================================
-  // STEP 4: SEED STORES (Optional but recommended)
-  // ============================================================================
+  // --------------------------------------------------------------------------
+  // STEP 5: SEED STORES
+  // --------------------------------------------------------------------------
   console.log("\n🏪 Seeding stores...");
 
   const stores = [
@@ -316,26 +412,21 @@ async function main() {
     },
   ];
 
-  for (const storeData of stores) {
-    const existingStore = await prisma.store.findUnique({
-      where: { code: storeData.code },
+  for (const store of stores) {
+    const existing = await prisma.store.findUnique({
+      where: { code: store.code },
     });
-
-    if (existingStore) {
-      console.log(
-        `   ⏭️  Store '${storeData.name}' already exists, skipping...`,
-      );
+    if (existing) {
+      console.log(`   ⏭️  Store '${store.name}' already exists, skipping...`);
     } else {
-      await prisma.store.create({
-        data: storeData,
-      });
-      console.log(`   ✅ Created store: ${storeData.name}`);
+      await prisma.store.create({ data: store });
+      console.log(`   ✅ Created store: ${store.name}`);
     }
   }
 
-  // ============================================================================
-  // STEP 5: SEED SYSTEM CONFIGURATIONS
-  // ============================================================================
+  // --------------------------------------------------------------------------
+  // STEP 6: SEED SYSTEM CONFIGURATIONS
+  // --------------------------------------------------------------------------
   console.log("\n⚙️  Seeding system configurations...");
 
   const configs = [
@@ -343,7 +434,7 @@ async function main() {
       key: "expiry_warning_days",
       value: 90,
       category: "business_rules",
-      description: "Number of days before expiry to trigger warnings",
+      description: "Days before expiry to trigger warnings",
       dataType: "number",
       isSystem: false,
     },
@@ -389,32 +480,30 @@ async function main() {
     },
   ];
 
-  for (const configData of configs) {
-    const existingConfig = await prisma.systemConfiguration.findUnique({
-      where: { key: configData.key },
+  for (const config of configs) {
+    const existing = await prisma.systemConfiguration.findUnique({
+      where: { key: config.key },
     });
-
-    if (existingConfig) {
-      console.log(
-        `   ⏭️  Config '${configData.key}' already exists, skipping...`,
-      );
+    if (existing) {
+      console.log(`   ⏭️  Config '${config.key}' already exists, skipping...`);
     } else {
-      await prisma.systemConfiguration.create({
-        data: configData,
-      });
-      console.log(`   ✅ Created config: ${configData.key}`);
+      await prisma.systemConfiguration.create({ data: config });
+      console.log(`   ✅ Created config: ${config.key}`);
     }
   }
 
+  // --------------------------------------------------------------------------
+  // SUMMARY
+  // --------------------------------------------------------------------------
   console.log("\n✨ Database seeding completed successfully!");
   console.log("\n📝 Summary:");
-  console.log("   • Roles: 6 system roles created");
-  console.log("   • Users: 1 admin user created");
-  console.log("   • Email: muthungavictor@zetech.ac.ke");
-  console.log("   • Password: Admin@123");
-  console.log("   • Drug Categories: 8 categories created");
-  console.log("   • Stores: 3 stores created");
-  console.log("   • System Configs: 6 configurations created");
+  console.log("   • Roles:           6 system roles synced");
+  console.log("   • Users:           1 admin user");
+  console.log("   • Email:           muthungavictor@zetech.ac.ke");
+  console.log("   • Password:        Admin@123");
+  console.log("   • Drug Categories: 8 categories");
+  console.log("   • Stores:          3 stores");
+  console.log("   • System Configs:  6 configurations");
   console.log("\n⚠️  IMPORTANT: Change the admin password after first login!");
 }
 

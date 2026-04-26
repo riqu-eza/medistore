@@ -32,7 +32,7 @@ const getNavigationItems = (role: string): NavItem[] => {
       { name: 'Stores', href: '/admin/store', icon: <WarehouseIcon />, permission: PERMISSIONS.STORES_READ },
       { name: 'Inventory', href: '/admin/inventory', icon: <BoxesIcon />, permission: PERMISSIONS.INVENTORY_READ },
       { name: 'GRN', href: '/admin/grn', icon: <ClipboardIcon />, permission: PERMISSIONS.GRN_READ },
-      { name: 'Orders', href: '/admin/orders', icon: <ShoppingIcon />, permission: PERMISSIONS.ORDERS_READ, badge: 5 },
+      { name: 'Orders', href: '/orders', icon: <ShoppingIcon />, permission: PERMISSIONS.ORDERS_READ, badge: 5 },
       { name: 'Reports', href: '/admin/reports', icon: <ChartIcon />, permission: PERMISSIONS.REPORTS_VIEW },
       { name: 'Audit Logs', href: '/auditor/viewall', icon: <ShieldIcon />, permission: PERMISSIONS.AUDIT_VIEW },
       { name: 'Admin Panel', href: '/admin', icon: <SettingsIcon /> },
@@ -43,7 +43,7 @@ const getNavigationItems = (role: string): NavItem[] => {
       { name: 'Drugs', href: '/store/drugs', icon: <PillIcon />, permission: PERMISSIONS.DRUGS_READ },        // ← different href
       { name: 'Inventory', href: '/store/inventory', icon: <BoxesIcon />, permission: PERMISSIONS.INVENTORY_READ },
       { name: 'GRN', href: '/store/grn', icon: <ClipboardIcon />, permission: PERMISSIONS.GRN_READ, badge: 3 },
-      { name: 'Orders', href: '/store/orders', icon: <ShoppingIcon />, permission: PERMISSIONS.ORDERS_READ },
+      { name: 'Orders', href: '/orders', icon: <ShoppingIcon />, permission: PERMISSIONS.ORDERS_READ },
       { name: 'Dispatch', href: '/store/dispatch', icon: <DeliveryIcon />, permission: PERMISSIONS.DISPATCH_READ },
     ],
 
@@ -53,6 +53,11 @@ const getNavigationItems = (role: string): NavItem[] => {
       { name: 'GRN', href: '/receiver/grn', icon: <ClipboardIcon />, permission: PERMISSIONS.GRN_READ, badge: 3 },
       { name: 'Dispatch', href: '/receiver/dispatch', icon: <DeliveryIcon />, permission: PERMISSIONS.DISPATCH_READ },
     ],
+    inventory_officer: [
+      { name: 'Dashboard', href: '/dashboard', icon: <HomeIcon /> },
+      { name: 'Inventory', href: '/inventory', icon: <BoxesIcon />, permission: PERMISSIONS.INVENTORY_READ },
+      { name: 'Orders', href: '/orders', icon: <ShoppingIcon />, permission: PERMISSIONS.ORDERS_READ },
+    ]
   }
 
   // Fallback for unknown roles

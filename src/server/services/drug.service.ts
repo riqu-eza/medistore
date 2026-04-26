@@ -53,6 +53,110 @@ function buildOrderBy(
   return { [field]: sortOrder };
 }
 
+
+// server/services/drug.service.ts - Add this function
+// server/services/drug.service.ts - Add this improved version
+export async function getOrderableDrugsWithStores(search?: string) {
+  try {
+    const where: Prisma.InventoryWhereInput = {
+      availableQuantity: { gt: 0 },
+      isExpired: false,
+      batch: {
+        qualityStatus: 'passed',
+        status: 'active',
+        expiryDate: { gt: new Date() }
+      },
+      drug: {
+        status: 'active'
+      }
+    }
+
+    if (search && search.trim()) {
+      where.drug = {
+        ...(where.drug as object),
+        OR: [
+          { genericName: { contains: search, mode: 'insensitive' } },
+          { brandName: { contains: search, mode: 'insensitive' } },
+          { drugCode: { contains: search, mode: 'insensitive' } }
+        ]
+      }
+    }
+
+    const inventories = await prisma.inventory.findMany({
+      where,
+      select: {
+        drugId: true,
+        storeId: true,
+        availableQuantity: true,
+        store: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            storeType: true,
+          }
+        },
+        drug: {
+          select: {
+            id: true,
+            genericName: true,
+            brandName: true,
+            sellingPrice: true,
+            drugCode: true,
+            dosageForm: true,
+            strength: true,
+            unitOfMeasure: true,
+            packSize: true,
+          }
+        }
+      },
+      orderBy: {
+        drug: {
+          genericName: 'asc'
+        }
+      }
+    })
+
+    // Group by drug to show available stores
+    const drugMap = new Map();
+    
+    for (const inv of inventories) {
+      if (!drugMap.has(inv.drugId)) {
+        drugMap.set(inv.drugId, {
+          drug: {
+            ...inv.drug,
+            sellingPrice: inv.drug.sellingPrice ? Number(inv.drug.sellingPrice) : null,
+          },
+          availableStores: [],
+          totalAvailableQuantity: 0
+        });
+      }
+      
+      const entry = drugMap.get(inv.drugId);
+      const availableQty = Number(inv.availableQuantity);
+      
+      entry.availableStores.push({
+        storeId: inv.storeId,
+        storeName: inv.store.name,
+        storeCode: inv.store.code,
+        storeType: inv.store.storeType,
+        availableQuantity: availableQty,
+      });
+      
+      entry.totalAvailableQuantity += availableQty;
+    }
+    
+    // Convert map to array and sort by drug name
+    const result = Array.from(drugMap.values())
+      .sort((a, b) => a.drug.genericName.localeCompare(b.drug.genericName));
+    
+    return result;
+    
+  } catch (error) {
+    console.error('Error in getOrderableDrugsWithStores:', error);
+    throw error;
+  }
+}
 // ─── READ: paginated list ─────────────────────────────────────────────────────
 export async function getDrugs(params: DrugQueryParams) {
   const where = buildWhereClause(params);

@@ -43,6 +43,9 @@ const KNOWN_ROUTES = [
   '/reports',
   '/profile',
   '/stores',
+  '/store',
+  '/auditor',
+  '/orders',
 ]
 
 function isKnownRoute(pathname: string): boolean {

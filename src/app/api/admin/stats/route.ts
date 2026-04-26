@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
+ console.log('[Stats API] User permissions:', session.user)
     if (!hasPermission(session.user.permissions, PERMISSIONS.REPORTS_VIEW)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }

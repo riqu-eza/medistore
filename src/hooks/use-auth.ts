@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // AUTH HOOKS - Client-Side React Hooks (UPDATED FOR NEXTAUTH)
 // File: src/hooks/use-auth.ts
 

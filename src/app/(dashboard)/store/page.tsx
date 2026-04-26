@@ -316,7 +316,7 @@ const storeId = user?.storeId ?? null
               icon: "📝",
               badge: raw?.lowStock || undefined,
             },
-            { label: "View Inventory", href: "/inventory", icon: "📦" },
+            { label: "View Inventory", href: "/store/inventory", icon: "📦" },
           ]}
         />
         <DynamicAlertsPanel alerts={alerts} loading={loading} />
