@@ -29,6 +29,7 @@ const PROTECTED_API_ROUTES = [
 // ✅ All real app routes that exist in your project.
 // Add new routes here as you build them.
 const KNOWN_ROUTES = [
+  '/',
   '/dashboard',
   '/admin',
   '/admin/users',
@@ -46,6 +47,7 @@ const KNOWN_ROUTES = [
   '/store',
   '/auditor',
   '/orders',
+  '/auth/login',
 ]
 
 function isKnownRoute(pathname: string): boolean {
