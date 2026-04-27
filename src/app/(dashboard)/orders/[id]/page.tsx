@@ -188,7 +188,7 @@ export default function OrderDetailPage() {
         </div>
         <div className="bg-gray-50 p-4 rounded-lg">
           <p className="text-sm text-gray-500">Total Value</p>
-          <p className="font-semibold">Ksh {order.totalValue?.toFixed(2) || "0.00"}</p>
+          <p className="font-semibold">KES {order.totalValue?.toFixed(2) || "0.00"}</p>
         </div>
         <div className="bg-gray-50 p-4 rounded-lg">
           <p className="text-sm text-gray-500">Allocation Progress</p>

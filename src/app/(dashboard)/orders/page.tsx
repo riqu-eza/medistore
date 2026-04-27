@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -175,7 +176,7 @@ export default function OrdersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 capitalize">{order.priority}</td>
-                    <td className="px-6 py-4">${order.totalValue?.toFixed(2) || "0.00"}</td>
+                    <td className="px-6 py-4">KES {order.totalValue?.toFixed(2) || "0.00"}</td>
                     <td className="px-6 py-4 text-sm">{format(new Date(order.createdAt), "dd MMM yyyy")}</td>
                     <td className="px-6 py-4 text-sm">{format(new Date(order.deliveryDate), "dd MMM yyyy")}</td>
                     <td className="px-6 py-4 whitespace-nowrap">

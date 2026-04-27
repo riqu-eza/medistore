@@ -105,7 +105,7 @@ export default function OrderDispatchCard({ order, onDispatch, dispatching }: Pr
           <div className="text-right shrink-0">
             <p className="text-xs text-slate-400">Total</p>
             <p className="text-sm font-bold text-slate-800">
-              KES {order.totalValue.toLocaleString()}
+              Ksh {order.totalValue.toLocaleString()}
             </p>
           </div>
         </div>
