@@ -1,0 +1,28 @@
+name: Auto Version Bump
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Bump version based on commit
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if echo "$COMMIT_MSG" | grep -q "BREAKING CHANGE\|major:"; then
+            npm version major -m "chore: bump version to %s [skip ci]"
+          elif echo "$COMMIT_MSG" | grep -q "feat:"; then
+            npm version minor -m "chore: bump version to %s [skip ci]"
+          else
+            npm version patch -m "chore: bump version to %s [skip ci]"
+          fi
+          git push --follow-tags
