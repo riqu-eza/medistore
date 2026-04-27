@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from "@/lib/prisma";
-import { allocateOrderItems } from "./allocation.service";
+import { AllocationService } from "./allocation.service";
 
 export async function createOrderWithAllocation(data: any) {
+  // 1. Create order and items in transaction
   const order = await prisma.$transaction(async (tx) => {
-    // 1. Create order header
     const order = await tx.order.create({
       data: {
         orderNumber: `ORD-${Date.now()}`,
@@ -18,10 +19,8 @@ export async function createOrderWithAllocation(data: any) {
       },
     });
 
-    // 2. Create order items (requested quantities)
-    const orderItems = [];
     for (const item of data.items) {
-      const orderItem = await tx.orderItem.create({
+      await tx.orderItem.create({
         data: {
           orderId: order.id,
           drugId: item.drugId,
@@ -29,16 +28,21 @@ export async function createOrderWithAllocation(data: any) {
           unitPrice: item.unitPrice,
         },
       });
-      orderItems.push(orderItem);
-    }
-
-    // 3. Run FEFO allocation (if you want auto-allocate)
-    if (data.autoAllocate !== false) {
-      await allocateOrderItems(order.id, data.sourceStoreId, tx);
     }
 
     return order;
   });
+
+  // 2. Run allocation outside the transaction (it creates its own internally)
+  if (data.autoAllocate !== false) {
+    await AllocationService.allocateOrder({   // ← call the static method, not the class
+      orderId: order.id,
+      allocatedBy: data.userId,
+      storeIds: [data.sourceStoreId],
+      allowCrossStore: false,
+      overrideRestrictions: false,
+    });
+  }
 
   return order;
 }

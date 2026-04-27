@@ -1,3 +1,5 @@
+import { AllocationDebugInfo } from "@/server/services/allocation.service";
+
 // types/order.ts
 export interface OrderAllocationRequest {
   orderId: string;
@@ -16,6 +18,7 @@ export interface AllocationResult {
   auditId: string;
   async?: boolean;
   message?: string;
+  debugInfo?: AllocationDebugInfo;
 }
 
 export interface AllocatedItem {

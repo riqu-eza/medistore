@@ -703,6 +703,9 @@ export class AllocationService {
           orderId,
           status: { in: ['reserved', 'picked'] },
         },
+        include: {
+          batch: {select:{drugId:true}},
+        }
       });
       
       this.addLog(
@@ -727,7 +730,7 @@ export class AllocationService {
         // Get inventory record
         const inventory = await tx.inventory.findFirst({
           where: {
-            drugId: allocation.drugId,
+            drugId: allocation.batch.drugId,
             batchId: allocation.batchId,
             storeId: allocation.storeId,
           },
@@ -779,7 +782,7 @@ export class AllocationService {
         // Audit ledger
         await tx.inventoryLedger.create({
           data: {
-            drugId: allocation.drugId,
+            drugId: allocation.batch.drugId,
             batchId: allocation.batchId,
             storeId: allocation.storeId,
             quantityIn: Number(allocation.allocatedQuantity),

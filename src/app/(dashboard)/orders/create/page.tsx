@@ -23,11 +23,16 @@ interface DrugWithStores {
   }>;
   totalAvailableQuantity: number;
 }
-
+interface Store {
+  id: string;
+  name: string;
+  code: string;
+  storeType?: string;
+}
 export default function CreateOrderPage() {
   const router = useRouter();
   const [drugsWithStores, setDrugsWithStores] = useState<DrugWithStores[]>([]);
-  const [stores, setStores] = useState<availableStores[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   const [selectedItems, setSelectedItems] = useState<
     { drugId: string; quantity: number; unitPrice: number; preferredStoreId?: string }[]
   >([]);

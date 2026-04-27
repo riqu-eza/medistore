@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth/auth'
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,23 +89,24 @@ export async function GET(req: NextRequest) {
     const to         = searchParams.get('to')         ?? undefined
     const search     = searchParams.get('search')     ?? undefined
 
-    const where: Parameters<typeof prisma.auditLog.findMany>[0]['where'] = {
-      ...(action     && { action:     { equals: action,     mode: 'insensitive' } }),
-      ...(entityType && { entityType: { equals: entityType, mode: 'insensitive' } }),
-      ...(userId     && { userId }),
-      ...((from || to) && {
-        createdAt: {
-          ...(from && { gte: new Date(from) }),
-          ...(to   && { lte: new Date(to)   }),
-        },
-      }),
-      ...(search && {
-        OR: [
-          { action:     { contains: search, mode: 'insensitive' } },
-          { entityType: { contains: search, mode: 'insensitive' } },
-        ],
-      }),
-    }
+
+const where: Prisma.AuditLogWhereInput = {
+  ...(action     && { action:     { equals: action,     mode: Prisma.QueryMode.insensitive } }),
+  ...(entityType && { entityType: { equals: entityType, mode: Prisma.QueryMode.insensitive } }),
+  ...(userId     && { userId }),
+  ...((from || to) && {
+    createdAt: {
+      ...(from && { gte: new Date(from) }),
+      ...(to   && { lte: new Date(to)   }),
+    },
+  }),
+  ...(search && {
+    OR: [
+      { action:     { contains: search, mode: Prisma.QueryMode.insensitive } },
+      { entityType: { contains: search, mode: Prisma.QueryMode.insensitive } },
+    ],
+  }),
+}
 
     const [total, rows] = await Promise.all([
       prisma.auditLog.count({ where }),

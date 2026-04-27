@@ -14,7 +14,7 @@ export async function POST(
     }
 
     // Check permissions (assuming ORDER_APPROVE permission)
-    if (!hasPermission(session.user.permissions, PERMISSIONS.ORDER_APPROVE)) {
+    if (!hasPermission(session.user.permissions, PERMISSIONS.ORDERS_APPROVE)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

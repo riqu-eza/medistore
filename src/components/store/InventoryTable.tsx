@@ -20,7 +20,6 @@ export function InventoryTable({ inventory, stores = [], onRefresh }: InventoryT
   const [searchTerm, setSearchTerm] = useState("");
   const [showOnlyLowStock, setShowOnlyLowStock] = useState(false);
   const [sortBy, setSortBy] = useState<"expiry" | "drug" | "stock">("expiry");
-console.log("Rendering InventoryTable with inventory:", stores);
   // Modal states
   const [adjustModal, setAdjustModal] = useState<{ open: boolean; inventory: InventoryWithDetails | null }>({ open: false, inventory: null });
   const [transferModal, setTransferModal] = useState<{ open: boolean; inventory: InventoryWithDetails | null }>({ open: false, inventory: null });
@@ -52,7 +51,7 @@ console.log("Rendering InventoryTable with inventory:", stores);
         item.drug.genericName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.drug.brandName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.batch.batchNumber.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesLowStock = showOnlyLowStock ? item.availableQuantity <= (item.drug.reorderPoint || 10) : true;
+        const matchesLowStock = showOnlyLowStock ? Number(item.availableQuantity) <= (Number(item.drug.reorderPoint) || 10) : true;
       return matchesSearch && matchesLowStock;
     });
 
@@ -65,7 +64,7 @@ console.log("Rendering InventoryTable with inventory:", stores);
     return filtered;
   }, [inventory, searchTerm, showOnlyLowStock, sortBy]);
 
-  const lowStockCount = inventory.filter((i) => i.availableQuantity <= (i.drug.reorderPoint || 10)).length;
+  const lowStockCount = inventory.filter((i) => Number(i.availableQuantity) <= (Number(i.drug.reorderPoint) || 10)).length;
 
   // API calls
   const handleAdjust = async () => {
@@ -182,7 +181,7 @@ console.log("Rendering InventoryTable with inventory:", stores);
               ) : (
                 filteredInventory.map((item) => {
                   const expiryStatus = getExpiryStatus(item.expiryDate);
-                  const isLowStock = item.availableQuantity <= (item.drug.reorderPoint || 10);
+                  const isLowStock = Number(item.availableQuantity) <= (Number(item.drug.reorderPoint) || 10);
                   const expiryBg = expiryStatus === "expired" ? "bg-red-50 border-red-200" : expiryStatus === "near" ? "bg-yellow-500 border-yellow-200" : "bg-green-400 border-green-200";
 
                   return (
